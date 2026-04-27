@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Neurons to Transformers — Part II</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090c;
+  --surface: #0f1117;
+  --surface2: #161921;
+  --border: #22262f;
+  --text: #c8cdd8;
+  --dim: #5e6578;
+  --accent: #ff6b35;
+  --blue: #4da6ff;
+  --green: #3dd68c;
+  --purple: #a78bfa;
+  --pink: #f472b6;
+  --yellow: #fbbf24;
+  --code-bg: #0a0c10;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  line-height: 1.75;
+  overflow-x: hidden;
+}
+
+.container { max-width: 920px; margin: 0 auto; padding: 40px 24px 120px; }
+
+/* Hero */
+.hero {
+  padding: 70px 0 30px;
+  text-align: center;
+  position: relative;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; left: 50%;
+  transform: translateX(-50%);
+  width: 700px; height: 500px;
+  background: radial-gradient(ellipse, rgba(255,107,53,0.06) 0%, transparent 65%);
+  pointer-events: none;
+}
+.hero .part-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.hero h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.8rem;
+  font-weight: 400;
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero .sub {
+  margin-top: 14px;
+  font-size: 1rem;
+  color: var(--dim);
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Nav */
+.nav {
+  display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;
+  margin: 40px 0 50px;
+}
+.nav button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--dim);
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.nav button:hover { border-color: var(--accent); color: var(--text); }
+.nav button.active { background: var(--accent); border-color: var(--accent); color: #000; }
+
+/* Sections */
+.section { display:none; animation: fadeUp 0.35s ease; }
+.section.active { display:block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.9rem;
+  font-weight: 400;
+  color: #fff;
+  margin-bottom: 18px;
+  line-height: 1.3;
+}
+h2 .tag {
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 30px 0 10px;
+}
+
+p { margin-bottom: 14px; font-size: 0.93rem; }
+
+.hl { color: var(--accent); font-weight: 600; }
+.bl { color: var(--blue); font-weight: 600; }
+.gr { color: var(--green); font-weight: 600; }
+.pu { color: var(--purple); font-weight: 600; }
+.pk { color: var(--pink); font-weight: 600; }
+.yw { color: var(--yellow); font-weight: 600; }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 24px;
+  margin: 18px 0;
+}
+.card.glow-orange { border-left: 3px solid var(--accent); }
+.card.glow-blue { border-left: 3px solid var(--blue); }
+.card.glow-green { border-left: 3px solid var(--green); }
+.card.glow-purple { border-left: 3px solid var(--purple); }
+
+/* Math */
+.math {
+  background: #0c0e14;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 16px 0;
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem;
+  line-height: 2;
+  overflow-x: auto;
+}
+.math .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 6px;
+}
+.math .eq { color: #e4e8f0; }
+.math .note { color: var(--dim); font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-style: italic; }
+
+/* Code */
+.code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px 20px;
+  margin: 16px 0;
+  overflow-x: auto;
+}
+.code .lang {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+  display: block;
+}
+.code pre {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.85;
+  color: var(--text);
+}
+.code .kw { color: var(--pink); }
+.code .fn { color: var(--blue); }
+.code .cm { color: var(--dim); font-style: italic; }
+.code .st { color: var(--green); }
+.code .num { color: var(--accent); }
+
+/* Callout */
+.callout {
+  border-radius: 10px;
+  padding: 18px 22px;
+  margin: 18px 0;
+  font-size: 0.9rem;
+}
+.callout.orange { background: rgba(255,107,53,0.06); border: 1px solid rgba(255,107,53,0.2); }
+.callout.blue { background: rgba(77,166,255,0.06); border: 1px solid rgba(77,166,255,0.2); }
+.callout.green { background: rgba(61,214,140,0.06); border: 1px solid rgba(61,214,140,0.2); }
+.callout.purple { background: rgba(167,139,250,0.06); border: 1px solid rgba(167,139,250,0.2); }
+
+/* Canvas */
+canvas {
+  display: block;
+  margin: 22px auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  max-width: 100%;
+}
+
+/* Comparison grid */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 18px 0;
+}
+@media (max-width: 600px) { .compare { grid-template-columns: 1fr; } }
+
+/* Arrow */
+.arrow { text-align: center; font-size: 1.4rem; color: var(--dim); margin: 6px 0; }
+
+/* Tag pill */
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.pill.orange { background: rgba(255,107,53,0.15); color: var(--accent); }
+.pill.blue { background: rgba(77,166,255,0.15); color: var(--blue); }
+.pill.green { background: rgba(61,214,140,0.15); color: var(--green); }
+.pill.purple { background: rgba(167,139,250,0.15); color: var(--purple); }
+
+/* Flow diagram styling */
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+.flow-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: center;
+  min-width: 100px;
+}
+.flow-arrow { color: var(--dim); font-size: 1.2rem; }
+
+/* Timeline */
+.timeline-item {
+  position: relative;
+  padding-left: 28px;
+  margin: 14px 0;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: -14px;
+  width: 2px;
+  background: var(--border);
+}
+.timeline-item::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.timeline-item:last-child::before { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<div class="hero">
+  <div class="part-label">Part II — Building on Part I</div>
+  <h1>From Neurons to <em>Transformers</em> &amp; <em>GPUs</em></h1>
+  <p class="sub">Same intuition. Same math. Just more neurons, smarter wiring, and massively parallel hardware.</p>
+</div>
+
+<div class="nav">
+  <button class="" onclick="show(0)">1 — Scale Up</button>
+  <button onclick="show(1)" class="">2 — Matrices</button>
+  <button onclick="show(2)" class="">3 — Why GPUs</button>
+  <button onclick="show(3)" class="">4 — Embeddings</button>
+  <button onclick="show(4)" class="">5 — Attention</button>
+  <button onclick="show(5)" class="">6 — Transformer</button>
+  <button onclick="show(6)" class="">7 — Training</button>
+  <button onclick="show(7)" class="active">8 — Full Picture</button>
+</div>
+
+<!-- ============ SECTION 1: SCALE UP ============ -->
+<div class="section" id="s0">
+<h2><span class="tag">01 — Scale Up</span>From 1 Neuron to Thousands</h2>
+
+<p>In Part I we had <span class="hl">4 weights</span> (w₁, b₁, w₂, b₂). That tiny network learned a simple curve. Now imagine:</p>
+
+<div class="compare">
+  <div class="card glow-orange">
+    <span class="pill orange">Part I</span>
+    <p style="margin-top:10px;margin-bottom:4px"><strong>1 hidden neuron</strong></p>
+    <p style="margin-bottom:0;font-size:0.85rem;color:var(--dim)">4 parameters. Learns one "bend."</p>
+  </div>
+  <div class="card glow-blue">
+    <span class="pill blue">GPT-scale</span>
+    <p style="margin-top:10px;margin-bottom:4px"><strong>Billions of neurons</strong></p>
+    <p style="margin-bottom:0;font-size:0.85rem;color:var(--dim)">175 billion+ parameters. Learns language itself.</p>
+  </div>
+</div>
+
+<p>But the <em>principle is identical</em>. Every neuron still does:</p>
+
+<div class="math">
+  <span class="eq">z = w₁x₁ + w₂x₂ + w₃x₃ + … + wₙxₙ + b</span><br>
+  <span class="eq">a = activation(z)</span><br>
+  <span class="note">Same weighted sum → same nonlinear bend. Just more inputs per neuron.</span>
+</div>
+
+<canvas id="scaleCanvas" width="1404" height="644" style="width: 702px; height: 322px;"></canvas>
+
+<p>When you have <span class="hl">many neurons per layer</span> and <span class="bl">many layers</span>, the network can learn incredibly complex patterns. Each layer discovers more abstract features — from raw pixels to edges, shapes, objects, concepts.</p>
+
+<div class="callout orange">
+  <strong>Key insight:</strong> More neurons = more "knobs" to turn = more complex shapes the network can fit. GPT-3 has 175 billion knobs. Same gradient descent from Part I turns all of them.
+</div>
+</div>
+
+<!-- ============ SECTION 2: MATRICES ============ -->
+<div class="section" id="s1">
+<h2><span class="tag">02 — Matrices</span>Why Everything Becomes Matrix Math</h2>
+
+<p>In Part I, one neuron computed <code>z = w·x + b</code>. But when you have <span class="hl">4 inputs</span> feeding into <span class="bl">3 neurons</span>, each neuron has its own w's and b:</p>
+
+<div class="math">
+  <span class="label">Neuron 1</span>
+  <span class="eq">z₁ = w₁₁·x₁ + w₁₂·x₂ + w₁₃·x₃ + w₁₄·x₄ + b₁</span>
+</div>
+<div class="math">
+  <span class="label">Neuron 2</span>
+  <span class="eq">z₂ = w₂₁·x₁ + w₂₂·x₂ + w₂₃·x₃ + w₂₄·x₄ + b₂</span>
+</div>
+<div class="math">
+  <span class="label">Neuron 3</span>
+  <span class="eq">z₃ = w₃₁·x₁ + w₃₂·x₂ + w₃₃·x₃ + w₃₄·x₄ + b₃</span>
+</div>
+
+<p>That's three separate equations doing the same pattern. We can collapse them into one <span class="hl">matrix multiplication</span>:</p>
+
+<div class="math">
+  <span class="label">All 3 neurons at once</span>
+  <span class="eq"><strong>z</strong> = <strong>W</strong> · <strong>x</strong> + <strong>b</strong></span><br><br>
+  <span class="eq">┌ z₁ ┐   ┌ w₁₁ w₁₂ w₁₃ w₁₄ ┐   ┌ x₁ ┐   ┌ b₁ ┐</span><br>
+  <span class="eq">│ z₂ │ = │ w₂₁ w₂₂ w₂₃ w₂₄ │ · │ x₂ │ + │ b₂ │</span><br>
+  <span class="eq">└ z₃ ┘   └ w₃₁ w₃₂ w₃₃ w₃₄ ┘   │ x₃ │   └ b₃ ┘</span><br>
+  <span class="eq">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;└ x₄ ┘</span><br><br>
+  <span class="note">One operation computes ALL neurons in a layer simultaneously.</span>
+</div>
+
+<div class="code">
+  <span class="lang">Python — One neuron vs. Matrix</span>
+<pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># OLD WAY: loop over each neuron (slow)</span>
+z1 = w11*x1 + w12*x2 + w13*x3 + w14*x4 + b1
+z2 = w21*x1 + w22*x2 + w23*x3 + w24*x4 + b2
+z3 = w31*x1 + w32*x2 + w33*x3 + w34*x4 + b3
+
+<span class="cm"># NEW WAY: one matrix multiply (fast!)</span>
+W = np.<span class="fn">array</span>([[w11, w12, w13, w14],
+              [w21, w22, w23, w24],
+              [w31, w32, w33, w34]])  <span class="cm"># shape: (3, 4)</span>
+x = np.<span class="fn">array</span>([x1, x2, x3, x4])       <span class="cm"># shape: (4,)</span>
+b = np.<span class="fn">array</span>([b1, b2, b3])             <span class="cm"># shape: (3,)</span>
+
+z = W @ x + b  <span class="cm"># ALL 3 neurons in one operation!</span></pre>
+</div>
+
+<div class="callout blue">
+  <strong>This is the crucial realization:</strong> Every layer of a neural network — whether it has 3 neurons or 12,288 — is just one matrix multiply followed by an activation function. The entire forward pass is a chain of matrix multiplies.
+</div>
+</div>
+
+<!-- ============ SECTION 3: WHY GPUs ============ -->
+<div class="section" id="s2">
+<h2><span class="tag">03 — Hardware</span>Why GPUs Change Everything</h2>
+
+<p>A CPU does things <span class="hl">one at a time</span> (or a few at a time). A GPU does <span class="gr">thousands at once</span>. And what's a matrix multiply? Thousands of independent multiply-and-add operations.</p>
+
+<canvas id="gpuCanvas" width="1404" height="684" style="width: 702px; height: 342px;"></canvas>
+
+<div class="compare">
+  <div class="card glow-orange">
+    <span class="pill orange">CPU</span>
+    <p style="margin-top:10px;margin-bottom:4px"><strong>8–24 cores</strong></p>
+    <p style="margin-bottom:0;font-size:0.85rem;color:var(--dim)">Each core is powerful, handles complex sequential logic. Great at doing 1 thing fast.</p>
+  </div>
+  <div class="card glow-green">
+    <span class="pill green">GPU (CUDA)</span>
+    <p style="margin-top:10px;margin-bottom:4px"><strong>10,000+ cores</strong></p>
+    <p style="margin-bottom:0;font-size:0.85rem;color:var(--dim)">Each core is simple, but there are thousands. Great at doing 10,000 things at once.</p>
+  </div>
+</div>
+
+<h3>The Perfect Match</h3>
+
+<p>Look at our matrix multiply. To compute <strong>z</strong> = <strong>W</strong>·<strong>x</strong> + <strong>b</strong> for a layer with 4096 neurons and 4096 inputs:</p>
+
+<div class="math">
+  <span class="label">Operations needed</span>
+  <span class="eq">4096 × 4096 = 16,777,216 multiplications</span><br>
+  <span class="eq">+ 16,777,216 additions</span><br>
+  <span class="eq">= ~33 million operations for ONE layer</span><br><br>
+  <span class="note">But every single one is independent — they don't depend on each other.</span>
+</div>
+
+<div class="card glow-orange">
+  <p style="margin-bottom:8px"><strong>CPU approach:</strong> Do them mostly one-by-one (with some SIMD). Takes ~<span class="hl">4 milliseconds</span>.</p>
+  <p style="margin-bottom:0"><strong>GPU approach:</strong> Fire up 10,000 CUDA cores, each computing a chunk in parallel. Takes ~<span class="gr">0.05 milliseconds</span>. That's <strong>80× faster</strong>.</p>
+</div>
+
+<div class="code">
+  <span class="lang">CUDA — The core idea (pseudocode)</span>
+<pre><span class="cm">// CPU: sequential loop</span>
+<span class="kw">for</span> row <span class="kw">in</span> <span class="fn">range</span>(<span class="num">4096</span>):
+    <span class="kw">for</span> col <span class="kw">in</span> <span class="fn">range</span>(<span class="num">4096</span>):
+        z[row] += W[row][col] * x[col]  <span class="cm">// one at a time 😴</span>
+
+<span class="cm">// GPU: every row computed simultaneously</span>
+<span class="cm">// CUDA launches 4096 threads — one per output neuron</span>
+<span class="kw">__global__</span> <span class="kw">void</span> <span class="fn">matmul_kernel</span>(W, x, z):
+    row = threadIdx.x  <span class="cm">// each thread knows its row</span>
+    z[row] = <span class="num">0</span>
+    <span class="kw">for</span> col <span class="kw">in</span> <span class="fn">range</span>(<span class="num">4096</span>):
+        z[row] += W[row][col] * x[col]  <span class="cm">// all rows AT ONCE 🔥</span></pre>
+</div>
+
+<h3>It's Not Just Forward Pass</h3>
+<p><span class="hl">Backpropagation</span> is also matrix multiplies (transposed weight matrices). <span class="bl">Gradient descent</span> updates are element-wise operations (also parallel). So GPUs accelerate the <em>entire</em> training loop:</p>
+
+<div class="flow-row">
+  <div class="flow-box" style="border-color:var(--blue)">Forward<br><small>W @ x</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-box" style="border-color:var(--pink)">Backprop<br><small>Wᵀ @ δ</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-box" style="border-color:var(--green)">Update<br><small>W -= η·∇W</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-box" style="border-color:var(--dim)">Repeat</div>
+</div>
+<p style="text-align:center;color:var(--dim);font-size:0.82rem;margin-top:6px;">Every box is matrix math → every box is massively parallelizable on GPU</p>
+
+<div class="callout green">
+  <strong>NVIDIA's CUDA</strong> is the programming framework that lets you write code that runs on those thousands of GPU cores. Libraries like cuBLAS handle the matrix math, and PyTorch/TensorFlow call them automatically. When you write <code>model.to('cuda')</code> in PyTorch, all the matrix multiplies get routed to the GPU.
+</div>
+</div>
+
+<!-- ============ SECTION 4: EMBEDDINGS ============ -->
+<div class="section" id="s3">
+<h2><span class="tag">04 — Words to Numbers</span>Embeddings: How Text Enters the Network</h2>
+
+<p>Our Part I network took numbers as input (x = 1.0, 2.0, ...). But language models need to process <em>words</em>. How do you feed "cat" into a matrix multiply?</p>
+
+<h3>Step 1: Vocabulary → Integer IDs</h3>
+<div class="math">
+  <span class="eq">"The" → 1023, &nbsp; "cat" → 4872, &nbsp; "sat" → 9211, &nbsp; "on" → 312, &nbsp; "the" → 1023, &nbsp; "mat" → 7654</span>
+</div>
+
+<h3>Step 2: Look Up Embedding Vectors</h3>
+<p>Each word ID maps to a <span class="hl">learned vector</span> — a list of numbers that represents the word's "meaning" in a high-dimensional space:</p>
+
+<div class="math">
+  <span class="label">Embedding table (learned during training)</span>
+  <span class="eq">"cat" → [0.21, −0.87, 0.44, 1.03, −0.15, …] &nbsp; (768 numbers)</span><br>
+  <span class="eq">"dog" → [0.19, −0.82, 0.51, 0.98, −0.11, …] &nbsp; (similar to cat!)</span><br>
+  <span class="eq">"pizza" → [−1.2, 0.33, −0.67, 0.12, 0.88, …] &nbsp; (very different)</span><br><br>
+  <span class="note">Words with similar meanings end up with similar vectors. This is learned, not programmed.</span>
+</div>
+
+<canvas id="embedCanvas" width="1404" height="564" style="width: 702px; height: 282px;"></canvas>
+
+<div class="code">
+  <span class="lang">Python — Embedding in PyTorch</span>
+<pre><span class="kw">import</span> torch
+
+<span class="cm"># Vocabulary of 50,000 words, each gets a 768-dim vector</span>
+embedding = torch.nn.<span class="fn">Embedding</span>(<span class="num">50000</span>, <span class="num">768</span>)
+
+<span class="cm"># "The cat sat" → token IDs</span>
+tokens = torch.<span class="fn">tensor</span>([<span class="num">1023</span>, <span class="num">4872</span>, <span class="num">9211</span>])
+
+<span class="cm"># Look up embeddings → shape (3, 768)</span>
+vectors = <span class="fn">embedding</span>(tokens)
+<span class="cm"># Now we have a MATRIX of numbers — ready for matrix math!</span></pre>
+</div>
+
+<div class="callout orange">
+  <strong>The embedding table is part of the weights.</strong> Those 50,000 × 768 = 38.4 million numbers are parameters that get trained by gradient descent — same as w₁ and w₂ from Part I. The network <em>learns</em> what each word's vector should be.
+</div>
+</div>
+
+<!-- ============ SECTION 5: ATTENTION ============ -->
+<div class="section" id="s4">
+<h2><span class="tag">05 — The Core Innovation</span>Attention: "Which Words Matter to Which?"</h2>
+
+<p>This is the heart of the Transformer. In an ordinary neural network, every input connects to every neuron equally. But in language, context matters: in "The <span class="hl">bank</span> of the <span class="bl">river</span>" vs "The <span class="hl">bank</span> approved the <span class="pu">loan</span>", the meaning of "bank" depends on nearby words.</p>
+
+<p><span class="hl">Attention</span> lets each word <em>look at every other word</em> and decide how much to pay attention to it.</p>
+
+<h3>The Three Vectors: Query, Key, Value</h3>
+
+<p>For each word, we create three vectors by multiplying with learned weight matrices:</p>
+
+<div class="math">
+  <span class="label">For each word embedding x</span>
+  <span class="eq">Q = W_Q · x &nbsp; <span style="color:var(--dim)">(Query: "What am I looking for?")</span></span><br>
+  <span class="eq">K = W_K · x &nbsp; <span style="color:var(--dim)">(Key: "What do I contain?")</span></span><br>
+  <span class="eq">V = W_V · x &nbsp; <span style="color:var(--dim)">(Value: "What info do I provide?")</span></span><br><br>
+  <span class="note">Three more matrix multiplies — all parallelizable on GPU!</span>
+</div>
+
+<div class="callout blue">
+  <strong>Analogy:</strong> Imagine a library. Your <span class="bl">Query</span> is your question. Each book's <span class="hl">Key</span> is its title/subject. The <span class="gr">Value</span> is the actual content. Attention = matching your question to the most relevant book titles, then reading those books proportionally.
+</div>
+
+<h3>Computing Attention Scores</h3>
+
+<p>How much should "bank" attend to "river"? Take the <span class="hl">dot product</span> of bank's Query with river's Key:</p>
+
+<div class="math">
+  <span class="label">Step-by-step for 3 words</span>
+  <span class="eq">1. Score(bank, the) = Q_bank · K_the = 2.1</span><br>
+  <span class="eq">2. Score(bank, river) = Q_bank · K_river = 8.7 &nbsp; ← high!</span><br>
+  <span class="eq">3. Score(bank, of) = Q_bank · K_of = 0.3</span><br><br>
+  <span class="eq">4. Scale: divide by √d_k (prevents huge numbers)</span><br>
+  <span class="eq">5. Softmax → [0.05, 0.91, 0.04] &nbsp; ← probabilities, sum to 1</span><br><br>
+  <span class="eq">6. Output = 0.05·V_the + <strong>0.91·V_river</strong> + 0.04·V_of</span><br><br>
+  <span class="note">"bank" now carries mostly "river" information → it means riverbank!</span>
+</div>
+
+<canvas id="attnCanvas" width="1404" height="604" style="width: 702px; height: 302px;"></canvas>
+
+<h3>The Full Attention Formula</h3>
+
+<div class="math">
+  <span class="label">Scaled Dot-Product Attention</span>
+  <span class="eq">Attention(Q, K, V) = softmax( Q · Kᵀ / √d_k ) · V</span><br><br>
+  <span class="note">That's it. Two matrix multiplies, a scale, a softmax, and one more matrix multiply. All parallelizable.</span>
+</div>
+
+<div class="code">
+  <span class="lang">Python — Attention from scratch</span>
+<pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">attention</span>(Q, K, V):
+    d_k = Q.shape[-<span class="num">1</span>]
+    <span class="cm"># Step 1: dot product of queries and keys</span>
+    scores = Q @ K.T / np.<span class="fn">sqrt</span>(d_k)
+    <span class="cm"># Step 2: softmax → attention weights</span>
+    weights = np.<span class="fn">exp</span>(scores) / np.<span class="fn">exp</span>(scores).<span class="fn">sum</span>(axis=-<span class="num">1</span>, keepdims=<span class="kw">True</span>)
+    <span class="cm"># Step 3: weighted sum of values</span>
+    output = weights @ V
+    <span class="kw">return</span> output, weights
+
+<span class="cm"># Example: 4 words, embedding dim 8</span>
+np.random.<span class="fn">seed</span>(<span class="num">42</span>)
+x = np.random.<span class="fn">randn</span>(<span class="num">4</span>, <span class="num">8</span>)   <span class="cm"># 4 word embeddings</span>
+W_Q = np.random.<span class="fn">randn</span>(<span class="num">8</span>, <span class="num">8</span>)  <span class="cm"># learned weight matrices</span>
+W_K = np.random.<span class="fn">randn</span>(<span class="num">8</span>, <span class="num">8</span>)
+W_V = np.random.<span class="fn">randn</span>(<span class="num">8</span>, <span class="num">8</span>)
+
+Q, K, V = x @ W_Q, x @ W_K, x @ W_V
+out, weights = <span class="fn">attention</span>(Q, K, V)
+<span class="fn">print</span>(<span class="st">"Attention weights:\n"</span>, weights.<span class="fn">round</span>(<span class="num">3</span>))</pre>
+</div>
+</div>
+
+<!-- ============ SECTION 6: TRANSFORMER ============ -->
+<div class="section" id="s5">
+<h2><span class="tag">06 — The Architecture</span>The Transformer Block</h2>
+
+<p>A Transformer stacks the same block many times (GPT-3 has 96 layers). Each block has two sub-components:</p>
+
+<canvas id="transformerCanvas" width="1404" height="964" style="width: 702px; height: 482px;"></canvas>
+
+<h3>Inside One Transformer Block</h3>
+
+<div class="card glow-orange" style="margin-bottom:8px">
+  <span class="pill orange">Part A — Multi-Head Attention</span>
+  <p style="margin-top:10px;margin-bottom:6px">Instead of one attention, run <strong>multiple attention heads in parallel</strong> (e.g., 12 heads). Each head learns to attend to different things — one might track grammar, another tracks meaning, another tracks position.</p>
+  <div class="math" style="margin-bottom:0">
+    <span class="eq">head_i = Attention(Q_i, K_i, V_i)</span><br>
+    <span class="eq">MultiHead = Concat(head_1, ..., head_12) · W_O</span>
+  </div>
+</div>
+
+<div class="arrow">↓ + residual connection + layer norm</div>
+
+<div class="card glow-blue">
+  <span class="pill blue">Part B — Feed-Forward Network</span>
+  <p style="margin-top:10px;margin-bottom:6px">A simple 2-layer neural network (exactly like Part I, but bigger!) applied to each word independently:</p>
+  <div class="math" style="margin-bottom:0">
+    <span class="eq">FFN(x) = W₂ · ReLU(W₁ · x + b₁) + b₂</span><br>
+    <span class="note">W₁ expands dimension (768 → 3072), W₂ compresses back (3072 → 768). This is where the "knowledge" is stored.</span>
+  </div>
+</div>
+
+<h3>Multi-Head Attention — Why?</h3>
+<div class="callout purple">
+  <strong>Analogy:</strong> It's like reading with multiple perspectives at once. Head 1 notices that "it" refers to "the cat." Head 2 notices this is a question. Head 3 notices the sentence is past tense. Each head has its own Q, K, V weight matrices — its own "lens" for reading.
+</div>
+
+<h3>Residual Connections — The Secret Sauce</h3>
+<p>Notice the <span class="hl">+ residual</span> after each sub-block. This means:</p>
+<div class="math">
+  <span class="eq">output = LayerNorm(x + SubBlock(x))</span><br>
+  <span class="note">The original input is ADDED to the output. This helps gradients flow during backprop — without it, deep networks (96 layers!) would be untrainable.</span>
+</div>
+</div>
+
+<!-- ============ SECTION 7: TRAINING ============ -->
+<div class="section" id="s6">
+<h2><span class="tag">07 — Training</span>Same Loop, Bigger Scale</h2>
+
+<p>Training a Transformer uses the <em>exact same loop</em> from Part I. The only difference is scale:</p>
+
+<div class="compare">
+  <div class="card glow-orange">
+    <span class="pill orange">Part I</span>
+    <p style="margin-top:8px;margin-bottom:0;font-size:0.85rem">4 parameters<br>4 data points<br>2000 epochs<br>0.001 seconds on CPU</p>
+  </div>
+  <div class="card glow-blue">
+    <span class="pill blue">GPT-3</span>
+    <p style="margin-top:8px;margin-bottom:0;font-size:0.85rem">175 billion parameters<br>300 billion tokens<br>~1 epoch<br>~3.5 million GPU-hours</p>
+  </div>
+</div>
+
+<h3>The Training Task: Predict the Next Word</h3>
+
+<div class="math">
+  <span class="label">Input → Target</span>
+  <span class="eq">"The cat sat on" → "the"</span><br>
+  <span class="eq">"The cat sat on the" → "mat"</span><br><br>
+  <span class="note">The model sees billions of sentences and learns to predict the next word. That's the ENTIRE training objective.</span>
+</div>
+
+<div class="flow-row">
+  <div class="flow-box" style="border-color:var(--accent)">Input tokens<br><small>"The cat sat"</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-box" style="border-color:var(--blue)">Embedding<br><small>→ vectors</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-box" style="border-color:var(--purple)">96 Transformer<br>Blocks</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-box" style="border-color:var(--green)">Predict next<br><small>P("on") = 0.82</small></div>
+</div>
+
+<h3>Loss Function: Cross-Entropy</h3>
+<p>Instead of MSE (squared distance), language models use <span class="hl">cross-entropy loss</span> — it measures how surprised the model is by the correct answer:</p>
+
+<div class="math">
+  <span class="eq">L = −log P(correct word)</span><br><br>
+  <span class="eq">If model predicts P("on") = 0.82 → L = −log(0.82) = 0.20 &nbsp; (low loss, good!)</span><br>
+  <span class="eq">If model predicts P("on") = 0.01 → L = −log(0.01) = 4.60 &nbsp; (high loss, bad!)</span><br><br>
+  <span class="note">Same idea as Part I: lower loss = better predictions.</span>
+</div>
+
+<h3>Backprop Through 96 Layers</h3>
+<p>The chain rule from Part I (5 steps) now extends through <span class="hl">hundreds of operations</span>. Gradient flows backward through every attention layer, every FFN, every activation — but it's the <em>same chain rule</em>. Frameworks like PyTorch do this automatically.</p>
+
+<div class="code">
+  <span class="lang">PyTorch — The training loop is familiar!</span>
+<pre><span class="cm"># Same structure as Part I, just using PyTorch</span>
+model = TransformerModel()
+optimizer = torch.optim.<span class="fn">Adam</span>(model.<span class="fn">parameters</span>(), lr=<span class="num">3e-4</span>)
+
+<span class="kw">for</span> batch <span class="kw">in</span> training_data:
+    <span class="cm"># ── FORWARD PASS ──</span>
+    predictions = <span class="fn">model</span>(batch.input_tokens)
+
+    <span class="cm"># ── LOSS ──</span>
+    loss = cross_entropy(predictions, batch.target_tokens)
+
+    <span class="cm"># ── BACKPROP ── (PyTorch autograd does the chain rule)</span>
+    loss.<span class="fn">backward</span>()
+
+    <span class="cm"># ── GRADIENT DESCENT ──</span>
+    optimizer.<span class="fn">step</span>()   <span class="cm"># updates all 175B parameters</span>
+    optimizer.<span class="fn">zero_grad</span>()</pre>
+</div>
+
+<div class="callout green">
+  <strong>That's it.</strong> The same 4-step loop from Part I (forward → loss → backprop → update) trains GPT. <code>loss.backward()</code> is the chain rule through 96 layers. <code>optimizer.step()</code> is gradient descent on 175 billion weights. The GPU parallelizes every matrix multiply.
+</div>
+</div>
+
+<!-- ============ SECTION 8: FULL PICTURE ============ -->
+<div class="section active" id="s7">
+<h2><span class="tag">08 — The Full Picture</span>Everything Connected</h2>
+
+<p>Let's trace the entire journey from your Part I intuition to a working Transformer:</p>
+
+<div class="timeline-item">
+  <p><span class="hl">Linear Regression</span> — Find the best <em>line</em> by minimizing cost with derivatives.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="bl">Tiny Neural Net</span> — Same idea, but chain multiple lines + bends. More knobs = more complex shapes. Same gradient descent.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="pu">Scale to Matrices</span> — Many neurons per layer → express as matrix multiplies. One operation computes an entire layer.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="gr">GPUs &amp; CUDA</span> — Matrix multiplies are embarrassingly parallel. GPUs have 10,000+ cores. Neural net training is 80–100× faster.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="yw">Embeddings</span> — Convert words to vectors (learned numbers). Now text is just matrices too.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="pk">Attention</span> — Let each word "look at" every other word via Q·Kᵀ dot products. This is what lets the model understand context.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="hl">Transformer Block</span> — Multi-head attention + feed-forward network + residual connections. Stack 96 of these.</p>
+</div>
+<div class="timeline-item">
+  <p><span class="bl">Training</span> — Predict next word on billions of sentences. Same forward → loss → backprop → update loop. Runs on thousands of GPUs for weeks.</p>
+</div>
+
+<canvas id="summaryCanvas" width="1404" height="404" style="width: 702px; height: 202px;"></canvas>
+
+<div class="callout orange">
+  <strong>The astonishing thing:</strong> From your linear regression intuition — fitting a line through points by minimizing distance — to GPT generating human-like text, the <em>mathematical framework never changes</em>. It's all: make a prediction, measure error, compute gradients, nudge weights. Repeated trillions of times across billions of parameters on thousands of GPUs.
+</div>
+
+<div class="card glow-purple">
+  <p style="margin-bottom:8px"><strong>Why it works:</strong></p>
+  <p style="margin-bottom:0;font-size:0.9rem">
+    <span class="pu">Attention</span> gives structure (which words matter to which). <span class="gr">Depth</span> (96 layers) gives abstraction. <span class="hl">Scale</span> (175B params) gives capacity. <span class="bl">Data</span> (trillions of words) gives knowledge. <span class="pk">GPUs</span> make it all feasible. But the <em>learning algorithm</em> is the same one you understood in Part I.
+  </p>
+</div>
+</div>
+
+</div><!-- /container -->
+
+<script>
+// ============ NAV ============
+const secs = document.querySelectorAll('.section');
+const btns = document.querySelectorAll('.nav button');
+function show(i) {
+  secs.forEach((s,idx) => { s.classList.toggle('active', idx===i); btns[idx].classList.toggle('active', idx===i); });
+  if (i===0) drawScale();
+  if (i===2) drawGPU();
+  if (i===3) drawEmbed();
+  if (i===4) drawAttn();
+  if (i===5) drawTransformer();
+  if (i===7) drawSummary();
+}
+
+function getCtx(id) {
+  const c = document.getElementById(id);
+  const dpr = window.devicePixelRatio||1;
+  const rect = c.getBoundingClientRect();
+  c.width = rect.width*dpr; c.height = rect.height*dpr;
+  c.style.width = rect.width+'px'; c.style.height = rect.height+'px';
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.W = rect.width; ctx.H = rect.height;
+  return ctx;
+}
+
+// ============ SCALE CANVAS ============
+function drawScale() {
+  const ctx = getCtx('scaleCanvas');
+  const W=ctx.W, H=ctx.H;
+  ctx.clearRect(0,0,W,H);
+
+  const layers = [
+    { n:1, x:W*0.1, label:'Input', color:'#4da6ff' },
+    { n:4, x:W*0.3, label:'Hidden 1', color:'#ff6b35' },
+    { n:6, x:W*0.5, label:'Hidden 2', color:'#ff6b35' },
+    { n:4, x:W*0.7, label:'Hidden 3', color:'#ff6b35' },
+    { n:1, x:W*0.9, label:'Output', color:'#3dd68c' },
+  ];
+
+  // Connections
+  for (let l=0;l<layers.length-1;l++) {
+    const a=layers[l], b=layers[l+1];
+    for (let i=0;i<a.n;i++) {
+      for (let j=0;j<b.n;j++) {
+        const ay = H*0.15 + (i/(Math.max(a.n-1,1)))*(H*0.6);
+        const by = H*0.15 + (j/(Math.max(b.n-1,1)))*(H*0.6);
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(a.x, a.n===1?H*0.45:ay); ctx.lineTo(b.x, b.n===1?H*0.45:by); ctx.stroke();
+      }
+    }
+  }
+
+  // Nodes
+  layers.forEach(l => {
+    for (let i=0;i<l.n;i++) {
+      const y = l.n===1 ? H*0.45 : H*0.15 + (i/(l.n-1))*(H*0.6);
+      ctx.fillStyle = l.color+'22';
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(l.x, y, 14, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle = '#5e6578';
+    ctx.font = '500 11px Outfit';
+    ctx.textAlign = 'center';
+    ctx.fillText(l.label, l.x, H*0.92);
+  });
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '500 12px Outfit';
+  ctx.fillText('Each connection = a weight. More neurons = more weights = more expressive power.', 20, H-10);
+}
+
+// ============ GPU CANVAS ============
+function drawGPU() {
+  const ctx = getCtx('gpuCanvas');
+  const W=ctx.W, H=ctx.H;
+  ctx.clearRect(0,0,W,H);
+
+  // CPU side
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '600 13px Outfit';
+  ctx.textAlign = 'center';
+  ctx.fillText('CPU — 8 cores (sequential)', W*0.22, 28);
+
+  for (let i=0;i<8;i++) {
+    const x = W*0.06 + (i%4)*(W*0.1);
+    const y = 46 + Math.floor(i/4)*50;
+    ctx.fillStyle = '#ff6b3522';
+    ctx.strokeStyle = '#ff6b35';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(x, y, W*0.08, 38);
+    ctx.strokeRect(x, y, W*0.08, 38);
+    ctx.fillStyle = '#ff6b35';
+    ctx.font = '500 10px IBM Plex Mono';
+    ctx.fillText('Core '+(i+1), x+W*0.04, y+23);
+  }
+
+  // Arrow
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '24px Outfit';
+  ctx.fillText('→', W*0.48, H*0.45);
+
+  // GPU side
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '600 13px Outfit';
+  ctx.fillText('GPU — 10,000+ cores (parallel)', W*0.75, 28);
+
+  const cols=16, rows=10;
+  const cw = (W*0.42)/cols, ch = (H*0.7)/rows;
+  for (let r=0;r<rows;r++) {
+    for (let c=0;c<cols;c++) {
+      const x = W*0.54 + c*cw;
+      const y = 42 + r*ch;
+      const hue = (r*cols+c) * 1.5;
+      ctx.fillStyle = `hsla(${140+hue*0.3}, 70%, 55%, 0.12)`;
+      ctx.strokeStyle = `hsla(${140+hue*0.3}, 70%, 55%, 0.3)`;
+      ctx.lineWidth = 0.5;
+      ctx.fillRect(x+1, y+1, cw-2, ch-2);
+      ctx.strokeRect(x+1, y+1, cw-2, ch-2);
+    }
+  }
+
+  ctx.fillStyle = '#3dd68c';
+  ctx.font = '500 10px IBM Plex Mono';
+  ctx.fillText('× 10,000+ all at once', W*0.75, H-16);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '11px Outfit';
+  ctx.fillText('Matrix multiply = thousands of independent ops → GPU computes them ALL simultaneously', 16, H-16);
+}
+
+// ============ EMBEDDING CANVAS ============
+function drawEmbed() {
+  const ctx = getCtx('embedCanvas');
+  const W=ctx.W, H=ctx.H;
+  ctx.clearRect(0,0,W,H);
+
+  // 2D projection of word embeddings
+  const words = [
+    { w:'cat', x:0.3, y:0.35, c:'#ff6b35' },
+    { w:'dog', x:0.35, y:0.3, c:'#ff6b35' },
+    { w:'kitten', x:0.28, y:0.38, c:'#ff6b35' },
+    { w:'puppy', x:0.37, y:0.33, c:'#ff6b35' },
+    { w:'car', x:0.7, y:0.7, c:'#4da6ff' },
+    { w:'truck', x:0.75, y:0.72, c:'#4da6ff' },
+    { w:'bicycle', x:0.65, y:0.65, c:'#4da6ff' },
+    { w:'king', x:0.5, y:0.15, c:'#a78bfa' },
+    { w:'queen', x:0.55, y:0.12, c:'#a78bfa' },
+    { w:'prince', x:0.48, y:0.2, c:'#a78bfa' },
+    { w:'pizza', x:0.15, y:0.75, c:'#3dd68c' },
+    { w:'pasta', x:0.2, y:0.78, c:'#3dd68c' },
+    { w:'sushi', x:0.12, y:0.7, c:'#3dd68c' },
+  ];
+
+  const sx = v => 60 + v*(W-120);
+  const sy = v => 30 + v*(H-60);
+
+  // Light cluster regions
+  const clusters = [
+    { x:0.32, y:0.34, r:80, c:'rgba(255,107,53,0.04)' },
+    { x:0.7, y:0.69, r:70, c:'rgba(77,166,255,0.04)' },
+    { x:0.51, y:0.16, r:60, c:'rgba(167,139,250,0.04)' },
+    { x:0.16, y:0.74, r:60, c:'rgba(61,214,140,0.04)' },
+  ];
+  clusters.forEach(cl => {
+    ctx.fillStyle = cl.c;
+    ctx.beginPath(); ctx.arc(sx(cl.x), sy(cl.y), cl.r, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Words
+  words.forEach(wd => {
+    ctx.fillStyle = wd.c;
+    ctx.beginPath(); ctx.arc(sx(wd.x), sy(wd.y), 4, 0, Math.PI*2); ctx.fill();
+    ctx.font = '500 11px Outfit';
+    ctx.fillText(wd.w, sx(wd.x)+7, sy(wd.y)+4);
+  });
+
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '11px Outfit';
+  ctx.fillText('Similar words cluster together in embedding space (shown in 2D)', 16, H-8);
+}
+
+// ============ ATTENTION CANVAS ============
+function drawAttn() {
+  const ctx = getCtx('attnCanvas');
+  const W=ctx.W, H=ctx.H;
+  ctx.clearRect(0,0,W,H);
+
+  const words = ['The', 'bank', 'of', 'the', 'river'];
+  const n = words.length;
+  const focusIdx = 1; // "bank"
+
+  // Attention weights (bank attending to others)
+  const weights = [0.02, 0.05, 0.03, 0.02, 0.88];
+
+  const wx = i => 60 + (i/(n-1))*(W-120);
+  const topY = 60, botY = H-60;
+
+  // Draw connections from "bank" to all words
+  for (let i=0;i<n;i++) {
+    const alpha = weights[i];
+    ctx.strokeStyle = `rgba(255,107,53,${Math.max(alpha*0.8, 0.05)})`;
+    ctx.lineWidth = 1 + alpha*8;
+    ctx.beginPath();
+    ctx.moveTo(wx(focusIdx), topY+30);
+    ctx.quadraticCurveTo((wx(focusIdx)+wx(i))/2, (topY+botY)/2, wx(i), botY-30);
+    ctx.stroke();
+  }
+
+  // Word boxes
+  words.forEach((w,i) => {
+    // Top row
+    const isActive = i===focusIdx;
+    ctx.fillStyle = isActive ? '#ff6b3520' : 'var(--surface2)';
+    ctx.strokeStyle = isActive ? '#ff6b35' : '#22262f';
+    ctx.lineWidth = isActive ? 2 : 1;
+    const bw = 70, bh = 30;
+    ctx.fillRect(wx(i)-bw/2, topY, bw, bh);
+    ctx.strokeRect(wx(i)-bw/2, topY, bw, bh);
+    ctx.fillStyle = isActive ? '#ff6b35' : '#c8cdd8';
+    ctx.font = '600 13px Outfit';
+    ctx.textAlign = 'center';
+    ctx.fillText(w, wx(i), topY+20);
+
+    // Bottom row (same words)
+    ctx.fillStyle = '#0f1117';
+    ctx.strokeStyle = weights[i] > 0.3 ? '#3dd68c' : '#22262f';
+    ctx.lineWidth = weights[i] > 0.3 ? 2 : 1;
+    ctx.fillRect(wx(i)-bw/2, botY-bh, bw, bh);
+    ctx.strokeRect(wx(i)-bw/2, botY-bh, bw, bh);
+    ctx.fillStyle = weights[i] > 0.3 ? '#3dd68c' : '#c8cdd8';
+    ctx.fillText(w, wx(i), botY-10);
+
+    // Weight label
+    ctx.fillStyle = '#5e6578';
+    ctx.font = '500 10px IBM Plex Mono';
+    ctx.fillText((weights[i]*100).toFixed(0)+'%', wx(i), botY+16);
+  });
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ff6b35';
+  ctx.font = '500 11px Outfit';
+  ctx.fillText('← Query: "bank" looks at all words', wx(focusIdx)+40, topY+8);
+  ctx.fillStyle = '#3dd68c';
+  ctx.fillText('"river" gets 88% attention → bank = riverbank', wx(3), botY+34);
+}
+
+// ============ TRANSFORMER CANVAS ============
+function drawTransformer() {
+  const ctx = getCtx('transformerCanvas');
+  const W=ctx.W, H=ctx.H;
+  ctx.clearRect(0,0,W,H);
+
+  const centerX = W/2;
+  const boxW = 280, boxH = 50, gap = 16;
+
+  const blocks = [
+    { y:H-70, label:'Input Embeddings + Position', color:'#4da6ff', sub:'' },
+    { y:H-70-1*(boxH+gap), label:'Multi-Head Attention', color:'#ff6b35', sub:'Q·Kᵀ/√d → softmax → ·V' },
+    { y:H-70-2*(boxH+gap), label:'Add & Layer Norm', color:'#5e6578', sub:'residual connection' },
+    { y:H-70-3*(boxH+gap), label:'Feed-Forward Network', color:'#a78bfa', sub:'W₂·ReLU(W₁·x+b₁)+b₂' },
+    { y:H-70-4*(boxH+gap), label:'Add & Layer Norm', color:'#5e6578', sub:'residual connection' },
+    { y:H-70-5*(boxH+gap), label:'→ Next Transformer Block (×96)', color:'#3dd68c', sub:'' },
+    { y:H-70-6*(boxH+gap), label:'Output: P(next word)', color:'#f472b6', sub:'softmax over vocabulary' },
+  ];
+
+  blocks.forEach((b,i) => {
+    const x = centerX - boxW/2;
+
+    // Box
+    ctx.fillStyle = b.color + '10';
+    ctx.strokeStyle = b.color + '60';
+    ctx.lineWidth = 1.5;
+    const r = 8;
+    ctx.beginPath();
+    ctx.moveTo(x+r, b.y); ctx.lineTo(x+boxW-r, b.y);
+    ctx.arcTo(x+boxW, b.y, x+boxW, b.y+r, r);
+    ctx.lineTo(x+boxW, b.y+boxH-r);
+    ctx.arcTo(x+boxW, b.y+boxH, x+boxW-r, b.y+boxH, r);
+    ctx.lineTo(x+r, b.y+boxH);
+    ctx.arcTo(x, b.y+boxH, x, b.y+boxH-r, r);
+    ctx.lineTo(x, b.y+r);
+    ctx.arcTo(x, b.y, x+r, b.y, r);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Label
+    ctx.fillStyle = b.color;
+    ctx.font = '600 12px Outfit';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.label, centerX, b.y + (b.sub ? 20 : 28));
+    if (b.sub) {
+      ctx.fillStyle = '#5e6578';
+      ctx.font = '400 10px IBM Plex Mono';
+      ctx.fillText(b.sub, centerX, b.y + 36);
+    }
+
+    // Arrow between blocks
+    if (i < blocks.length-1) {
+      ctx.strokeStyle = '#22262f';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(centerX, b.y);
+      ctx.lineTo(centerX, blocks[i+1].y + boxH);
+      ctx.stroke();
+      // Arrowhead
+      ctx.fillStyle = '#22262f';
+      ctx.beginPath();
+      ctx.moveTo(centerX-4, blocks[i+1].y+boxH+4);
+      ctx.lineTo(centerX+4, blocks[i+1].y+boxH+4);
+      ctx.lineTo(centerX, blocks[i+1].y+boxH);
+      ctx.fill();
+    }
+  });
+
+  // Bracket for repeated block
+  ctx.strokeStyle = '#ff6b3540';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4,4]);
+  const by1 = blocks[1].y - 6;
+  const by2 = blocks[4].y + boxH + 6;
+  const bx = centerX + boxW/2 + 16;
+  ctx.beginPath();
+  ctx.moveTo(bx, by1); ctx.lineTo(bx+12, by1);
+  ctx.lineTo(bx+12, by2); ctx.lineTo(bx, by2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ff6b35';
+  ctx.font = '600 11px Outfit';
+  ctx.textAlign = 'left';
+  ctx.fillText('One', bx+18, (by1+by2)/2-6);
+  ctx.fillText('Block', bx+18, (by1+by2)/2+8);
+
+  ctx.textAlign = 'left';
+}
+
+// ============ SUMMARY CANVAS ============
+function drawSummary() {
+  const ctx = getCtx('summaryCanvas');
+  const W=ctx.W, H=ctx.H;
+  ctx.clearRect(0,0,W,H);
+
+  const steps = [
+    { label:'Linear\nRegression', color:'#ff6b35', icon:'y=mx+b' },
+    { label:'Neural\nNet', color:'#4da6ff', icon:'σ(Wx+b)' },
+    { label:'Matrix\nMath', color:'#a78bfa', icon:'W@x' },
+    { label:'GPU\nParallel', color:'#3dd68c', icon:'×10000' },
+    { label:'Attention', color:'#f472b6', icon:'QKᵀ→V' },
+    { label:'Transformer', color:'#fbbf24', icon:'×96' },
+  ];
+
+  const spacing = (W-80) / steps.length;
+
+  steps.forEach((s,i) => {
+    const x = 40 + i*spacing + spacing/2;
+    const y = H/2;
+
+    // Circle
+    ctx.fillStyle = s.color+'18';
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y-10, 28, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+    // Icon
+    ctx.fillStyle = s.color;
+    ctx.font = '600 10px IBM Plex Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.icon, x, y-6);
+
+    // Label
+    ctx.fillStyle = '#c8cdd8';
+    ctx.font = '500 10px Outfit';
+    const lines = s.label.split('\n');
+    lines.forEach((l,li) => ctx.fillText(l, x, y+32+li*14));
+
+    // Arrow
+    if (i < steps.length-1) {
+      ctx.strokeStyle = '#22262f';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x+32, y-10);
+      ctx.lineTo(x+spacing-32, y-10);
+      ctx.stroke();
+      ctx.fillStyle = '#22262f';
+      ctx.beginPath();
+      ctx.moveTo(x+spacing-34, y-14);
+      ctx.lineTo(x+spacing-34, y-6);
+      ctx.lineTo(x+spacing-28, y-10);
+      ctx.fill();
+    }
+  });
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#5e6578';
+  ctx.font = '11px Outfit';
+  ctx.fillText('Same math, growing complexity — from a line to language understanding', 16, H-10);
+}
+
+// Init
+drawScale();
+</script>
+
+
+
+</body></html>
