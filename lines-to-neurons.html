@@ -320,6 +320,7 @@ canvas {
   <button onclick="showSection(5)">5 — Gradient Descent</button>
   <button onclick="showSection(6)" class="">6 — Full Code</button>
   <button onclick="showSection(7)">7 — Playground</button>
+  <button onclick="showSection(8)">8 — Why It Fails</button>
 </div>
 
 <!-- ============ SECTION 0: ANALOGY ============ -->
@@ -719,7 +720,7 @@ lr = <span class="num">0.5</span>  <span class="cm"># learning rate</span>
 </div>
 
 <div class="callout blue">
-  <strong>Expected output after training:</strong> The loss drops from ~0.13 to near 0, and predictions approach the true values. With only 1 hidden neuron, it won't be perfect — but it'll be much better than a straight line.
+  <strong>Expected output after training:</strong> The loss drops from ~0.13 and <em>plateaus around 0.086</em> — it never reaches zero. The predictions for x=2 and x=3 land near 0.66 instead of 1, and x=4 is stuck at 0.66 instead of 0. The network is doing the best it can — but it cannot fit this data. The next section explains why, and how to fix it.
 </div>
 </div>
 
@@ -750,6 +751,63 @@ lr = <span class="num">0.5</span>  <span class="cm"># learning rate</span>
 </div>
 
 <canvas id="playCanvas" width="600" height="300"></canvas>
+</div>
+
+<!-- ============ SECTION 8: WHY IT FAILS ============ -->
+<div class="section" id="sec8">
+<h2><span class="num">08</span>Why It Fails — and How to Fix It</h2>
+
+<p>If you train this network for thousands of epochs, the loss <em>never reaches zero</em>. It stalls around <strong>0.086</strong>. That's not a training bug — it's a <span class="highlight">capacity</span> limit. With only 1 hidden neuron, this network <em>physically cannot</em> represent our target function.</p>
+
+<h3 style="margin-top:24px;">The data is non-monotonic</h3>
+
+<p>Look at our training data again:</p>
+
+<div class="math-block">
+  <span class="label">Target</span>
+  <span class="eq">x: 1 &nbsp; 2 &nbsp; 3 &nbsp; 4</span><br>
+  <span class="eq">y: 0 &nbsp; 1 &nbsp; 1 &nbsp; 0</span><br>
+  <span class="comment">Goes down → up → up → down. The output rises, then <em>falls</em>.</span>
+</div>
+
+<p>That "falls" matters. As x grows, y doesn't keep going one direction — it reverses. This is the 1D version of the famous <span class="highlight">XOR problem</span>.</p>
+
+<h3 style="margin-top:24px;">What our network can express</h3>
+
+<p>Our forward pass is:</p>
+
+<div class="math-block">
+  <span class="eq">ŷ = w₂ · σ(w₁·x + b₁) + b₂</span>
+</div>
+
+<p>The sigmoid σ is <span class="highlight">monotonic</span> — it only ever goes <em>up</em> as its input grows. Multiplying by w₂ and adding b₂ is just a linear transform, which preserves monotonicity (or flips it if w₂ &lt; 0, but it stays monotonic). So <strong>ŷ as a function of x is monotonic too</strong>. It can rise smoothly, or fall smoothly — but it can't rise <em>and then fall</em>.</p>
+
+<p>No matter how long you train, no setting of w₁, b₁, w₂, b₂ produces a bump. The minimum-loss monotonic curve that passes near our points settles at ~0.66 for x ≥ 2 and eats the loss at x=4.</p>
+
+<h3 style="margin-top:24px;">The fix: add a second hidden neuron</h3>
+
+<p>With <em>two</em> hidden neurons, we can build a bump:</p>
+
+<div class="math-block">
+  <span class="eq">ŷ = w₂ₐ · σ(w₁ₐ·x + b₁ₐ) &nbsp;+&nbsp; w₂ᵦ · σ(w₁ᵦ·x + b₁ᵦ) &nbsp;+&nbsp; b₂</span><br>
+  <span class="comment">One sigmoid turns ON near x=1.5; the other turns it back OFF near x=3.5.</span>
+</div>
+
+<p>Two monotonic curves added together don't have to be monotonic. That's it. That's the whole reason hidden layers need <em>width</em>.</p>
+
+<img src="loss.png" alt="Loss curves and learned functions for 1 vs 2 hidden neurons" style="width:100%; border-radius:10px; border:1px solid var(--border); margin: 20px 0;">
+
+<p style="color:var(--text-dim); font-size:0.88rem; text-align:center; margin-top:-12px;">Left: 1-neuron loss plateaus immediately while 2-neuron loss drives all the way to ~10⁻²⁹. Right: the 1-neuron model (red) saturates and misses x=4, while the 2-neuron model (green) bends back down through every point.</p>
+
+<div class="callout">
+  <strong>One catch — initialization matters.</strong> A randomly-initialized 2-neuron network often gets stuck at loss ≈ 0.125 with all predictions = 0.5 (predicting the mean). That's the classic <span class="highlight">dead-gradient</span> failure: small random weights land both sigmoids in their flat tails where σ'(z) = a·(1−a) ≈ 0, so gradients can't flow back to the hidden layer. The script in <code>nn_from_scratch.py</code> hand-picks initial weights that already roughly form a bump. In real networks you fix this with proper initialization schemes (Xavier/He), wider layers (so <em>some</em> neurons land in useful regions by luck), and momentum/Adam optimizers to escape flat regions.
+</div>
+
+<div class="callout blue">
+  <strong>The bigger lesson.</strong> Tiny networks on tiny datasets are surprisingly fragile. Most of "deep learning works" is actually "we figured out how to keep gradients alive." Width, depth, smart initializations, residual connections, normalization, and modern optimizers all exist to solve variants of the same underlying problem we just hit: gradients vanishing or the model lacking the capacity to represent the target.
+</div>
+
+<p>Run <code>python3 nn_from_scratch.py</code> in this directory to reproduce both runs and the plot above.</p>
 </div>
 
 </div><!-- /container -->
