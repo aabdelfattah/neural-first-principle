@@ -1,0 +1,2607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From a line to a language model</title>
+<meta name="description" content="A curious learner's walkthrough — every number on screen, every step on a calculator. From linear regression to a working tiny LLM.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FFFFFF;
+  --text: #111111;
+  --text-dim: #686868;
+  --surface: #FBFAF3;
+  --accent: #503AA8;
+  --accent-soft: rgba(80, 58, 168, 0.1);
+  --accent-yellow: #FFEE58;
+  --accent-pink: #F6CFF4;
+  --neuron-1: #503AA8;
+  --neuron-2: #2e7d32;
+  --border: rgba(17, 17, 17, 0.12);
+  --border-strong: rgba(17, 17, 17, 0.25);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  font-weight: 300;
+  line-height: 1.6;
+  font-size: 17px;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Hero */
+.hero {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 60px 24px 30px;
+}
+.hero h1 {
+  font-size: 38px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  margin-bottom: 16px;
+}
+.hero h1 strong { font-weight: 500; color: var(--accent); }
+.hero .lede {
+  color: var(--text-dim);
+  font-size: 17px;
+  max-width: 560px;
+}
+
+/* Sticky scrubber */
+.scrubber-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+}
+.scrubber {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18px;
+}
+.stages {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 2px;
+  align-items: stretch;
+}
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.stage:hover { border-color: var(--accent); }
+.stage.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.stage .num {
+  font-family: 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+}
+.stage.active .num { color: rgba(255,255,255,0.7); }
+.stage .label { font-size: 12px; font-weight: 500; }
+
+.stage-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 8px;
+  font-family: 'Fira Code', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  position: relative;
+}
+.stage-divider::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 50%;
+  width: 1px;
+  background: var(--border-strong);
+  transform: translateX(-50%);
+}
+.stage-divider span {
+  background: var(--bg);
+  padding: 2px 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.prompt-mini {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+}
+.prompt-mini .tok {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.prompt-mini .next {
+  background: var(--accent-yellow);
+  border: 1px solid var(--text);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Panel */
+.panel-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+.panel { display: none; animation: fadeIn 0.3s ease; }
+.panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.panel-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 20px;
+  margin-bottom: 32px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-header h2 {
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+.panel-header .step-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.panel-header .helper {
+  color: var(--text-dim);
+  font-size: 15px;
+  max-width: 520px;
+  margin-top: 8px;
+}
+.panel-header .progress {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+}
+.panel-header .progress strong { color: var(--text); font-weight: 500; font-size: 14px; }
+
+.panel-body {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 28px;
+}
+@media (max-width: 820px) {
+  .panel-body { grid-template-columns: 1fr; }
+}
+
+.controls-col, .viz-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+}
+.viz-col {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* SVG diagrams carry an explicit width; cap it so they scale down (never
+   overflow) on narrow viewports. viewBox keeps them proportional. */
+.panel-body svg { max-width: 100%; height: auto; }
+.col-title {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  align-self: flex-start;
+  width: 100%;
+}
+
+/* Live formula strip */
+.formula-strip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+.formula-strip .eq {
+  font-family: 'Fira Code', monospace;
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.formula-strip .eq .var { color: var(--accent); font-weight: 500; }
+.formula-strip .eq .v2 { color: var(--neuron-2); font-weight: 500; }
+.formula-strip .loss {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+.formula-strip .loss .num { color: var(--text); font-weight: 500; }
+.formula-strip .hint {
+  font-family: 'Manrope', sans-serif;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.formula-strip .hint.win { color: var(--neuron-2); font-style: normal; font-weight: 500; }
+
+.slider-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.slider-block .row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.slider-block .row-top .name {
+  font-family: 'Fira Code', monospace;
+  font-size: 14px;
+  font-weight: 500;
+}
+.slider-block .row-top .name.n1 { color: var(--neuron-1); }
+.slider-block .row-top .name.n2 { color: var(--neuron-2); }
+.slider-block .row-top .val {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--text);
+}
+.slider-block input[type=range] { width: 100%; accent-color: var(--accent); }
+.slider-block.n1 input[type=range] { accent-color: var(--neuron-1); }
+.slider-block.n2 input[type=range] { accent-color: var(--neuron-2); }
+
+.neuron-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.neuron-group .group-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+.neuron-group.n1 { border-color: rgba(80, 58, 168, 0.3); }
+.neuron-group.n1 .group-label { color: var(--neuron-1); }
+.neuron-group.n2 { border-color: rgba(46, 125, 50, 0.3); }
+.neuron-group.n2 .group-label { color: var(--neuron-2); }
+.neuron-group .slider-block { border: none; background: transparent; padding: 6px 4px; margin: 0; }
+
+/* Token cards (embed stage) */
+/* One-row-per-token embedding grid: word · 3 magnitude cells · 3 inline sliders.
+   ~30 px tall vs ~110 px for the previous stacked card. */
+.token-card {
+  display: grid;
+  grid-template-columns: 44px 96px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  margin-bottom: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.token-card:hover { border-color: rgba(80,58,168,0.4); }
+.token-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.token-card .word { font-family: 'Fira Code', monospace; font-size: 13px; font-weight: 500; color: var(--accent); }
+.token-card .vec { display: flex; gap: 2px; }
+.token-card .vec .cell {
+  width: 30px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Fira Code', monospace; font-size: 9px; color: #111;
+  border: 1px solid rgba(17,17,17,0.18); border-radius: 2px;
+}
+.token-card .sliders { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-items: center; }
+.token-card .sliders input[type=range] { width: 100%; min-width: 0; accent-color: var(--accent); }
+
+/* Train row */
+.train-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 12px;
+}
+.train-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.train-btn:hover { background: #3f2c8e; }
+.train-btn.running { background: var(--text); }
+.train-btn .icon { display: inline-block; min-width: 12px; text-align: center; }
+
+.icon-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 41px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.train-meta {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  padding: 0 4px;
+  min-height: 16px;
+}
+
+.code-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 4px 4px;
+  margin-top: 6px;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
+}
+.code-toggle:hover { color: var(--accent); }
+.code-toggle .chev { display: inline-block; transition: transform 0.2s; font-family: 'Fira Code', monospace; }
+.code-toggle.open .chev { transform: rotate(180deg); }
+
+.code-reveal {
+  display: none;
+  background: #1a1e28;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 8px;
+  overflow-x: auto;
+}
+.code-reveal.open { display: block; }
+.code-reveal pre {
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  color: #d4d8e3;
+  white-space: pre;
+}
+.code-reveal .kw { color: #e85d75; }
+.code-reveal .cm { color: #7a8299; font-style: italic; }
+.code-reveal .fn { color: #ffee58; }
+.code-reveal .num { color: #5be8a0; }
+.code-reveal .st { color: #f6cff4; }
+
+/* Note reveal — light cream "paper" style, distinct from dark code-reveal */
+.note-reveal {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.note-reveal.open { display: block; }
+.note-reveal h4 {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.note-reveal p { font-size: 13px; margin-bottom: 10px; color: var(--text); }
+.note-reveal p:last-child { margin-bottom: 0; }
+.note-reveal strong { color: var(--text); font-weight: 600; }
+.note-reveal code { font-family: 'Fira Code', monospace; font-size: 12px; background: rgba(80,58,168,0.07); padding: 1px 5px; border-radius: 3px; }
+.note-reveal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+}
+.note-reveal th, .note-reveal td {
+  padding: 5px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.note-reveal th { color: var(--accent); font-weight: 500; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.note-reveal td.max { color: var(--accent); font-weight: 600; }
+.note-reveal .footnote { color: var(--text-dim); font-style: italic; font-size: 12px; margin-top: 10px; }
+
+/* ---- LLM-stage shared bits (Attend, Mix, Unembed, Sample) ---- */
+.value-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  margin: 4px 0 14px;
+}
+.value-table th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.value-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.value-table tr:last-child td { border-bottom: none; }
+.value-table tr.winner td { color: var(--accent); font-weight: 600; background: rgba(255,238,88,0.18); }
+.value-table .bar-cell { width: 40%; padding: 0 10px; }
+.value-table .bar-track { background: var(--surface); border-radius: 3px; height: 14px; overflow: hidden; border: 1px solid var(--border); }
+.value-table .bar-fill { background: var(--accent); height: 100%; transition: width 0.2s ease; }
+.value-table tr.winner .bar-fill { background: var(--accent-yellow); }
+.value-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
+
+.eq-line {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--text);
+  padding: 4px 0;
+  white-space: pre;
+  overflow-x: auto;
+}
+.eq-line .lbl { color: var(--text-dim); }
+.eq-line .v   { color: var(--accent); }
+.eq-line .v2  { color: var(--neuron-2); }
+.eq-line .yes { color: var(--accent); font-weight: 600; }
+
+.eq-stack {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 8px 0 16px;
+}
+
+.viz-col.full-width {
+  grid-column: 1 / -1;
+}
+
+/* Sample-stage history pill list */
+.sample-history {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  margin-top: 10px;
+  min-height: 56px;
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+}
+.sample-history .label {
+  color: var(--text-dim);
+  font-family: 'Manrope', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+.sample-history .tok-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 3px 9px;
+  border-radius: 4px;
+}
+.sample-history .tok-pill.fresh {
+  background: var(--accent-yellow);
+  border-color: var(--text);
+  font-weight: 500;
+  animation: pop 0.4s ease;
+}
+@keyframes pop { from { transform: scale(0.7); } to { transform: scale(1); } }
+.sample-history .arrow { color: var(--text-dim); }
+
+.sample-btn-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 10px;
+}
+.sample-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sample-btn:hover { background: #3f2c8e; }
+.sample-mode {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sample-mode select {
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Stub */
+.placeholder {
+  background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 10px, var(--bg) 10px, var(--bg) 20px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 100px;
+  text-align: center;
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Panel nav */
+.panel-nav { display: flex; justify-content: space-between; margin-top: 36px; gap: 12px; }
+.panel-nav button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.panel-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.panel-nav button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+.panel-nav button.primary:hover { background: #3f2c8e; color: white; }
+.panel-nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Footer */
+footer {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 30px 24px 60px;
+  color: var(--text-dim);
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+}
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto !important; }
+}
+@media (max-width: 600px) {
+  .hero h1 { font-size: 28px; }
+  .panel-header h2 { font-size: 24px; }
+  .scrubber { grid-template-columns: 1fr; gap: 10px; }
+  .prompt-mini { justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>From a <strong>line</strong> to a <strong>language model</strong>.</h1>
+  <p class="lede">Seven rungs. Each adds exactly one idea to the one before it. The same loss-minimising machine, from a line all the way to a word.</p>
+</div>
+
+<div class="scrubber-wrap">
+  <div class="scrubber">
+    <div class="stages" id="stages" role="tablist"></div>
+    <div class="prompt-mini" id="promptMini">
+      <span class="tok">a</span>
+      <span class="tok">fluffy</span>
+      <span class="tok">blue</span>
+      <span class="tok">creature</span>
+      <span style="color:var(--text-dim);">→</span>
+      <span class="next" id="predNext">roamed</span>
+      <span style="color:var(--text-dim); font-size:11px;" id="predProb">80%</span>
+    </div>
+  </div>
+</div>
+
+<div class="panel-wrap">
+
+  <!-- =========================================== STAGE 1 — LINE -->
+  <div class="panel active" id="panel-0" role="tabpanel" aria-labelledby="stage-0">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">01 — Line</div>
+        <h2>A model is a function with knobs.</h2>
+        <p class="helper">Two knobs: <code>w</code> (slope) and <code>b</code> (intercept). They define a line. Drag the sliders to find the line closest to the four yellow dots.</p>
+      </div>
+      <div class="progress">stage <strong>1</strong> of 7</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">parameters</div>
+        <div class="formula-strip">
+          <div class="eq">ŷ = <span class="var" id="lineW">0.30</span>·x + <span class="var" id="lineB">−0.10</span></div>
+          <div class="loss">loss (MSE — mean squared error) &nbsp;=&nbsp; <span class="num" id="lineLoss">0.000</span></div>
+          <div class="hint" id="lineHint">A line can fit slope, but not bumps.</div>
+        </div>
+        <div class="slider-block">
+          <div class="row-top"><span class="name">w</span><span class="val" id="lineWVal">0.30</span></div>
+          <input type="range" id="lineWSlider" min="-1" max="1" step="0.01" value="0.30" aria-label="slope w">
+        </div>
+        <div class="slider-block">
+          <div class="row-top"><span class="name">b</span><span class="val" id="lineBVal">−0.10</span></div>
+          <input type="range" id="lineBSlider" min="-1" max="2" step="0.01" value="-0.10" aria-label="intercept b">
+        </div>
+
+        <div class="train-row">
+          <button class="train-btn" id="lineTrainBtn" aria-label="Train via gradient descent">
+            <span class="icon">▶</span><span class="text">Train</span>
+          </button>
+          <button class="icon-btn" id="lineRandomBtn" title="Random init" aria-label="Randomize parameters">🎲</button>
+        </div>
+        <div class="train-meta" id="lineTrainMeta">gradient descent · lr=0.05</div>
+        <button class="code-toggle" data-target="lineCode" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Show training code</span>
+        </button>
+        <div class="code-reveal" id="lineCode"><pre><span class="cm"># ŷ = wx + b</span>
+<span class="cm"># L  = (1/N) Σ (ŷ − y)²</span>
+<span class="cm"># dL/dw = (2/N) Σ (ŷ − y) · x</span>
+<span class="cm"># dL/db = (2/N) Σ (ŷ − y)</span>
+
+data = [(<span class="num">1</span>, <span class="num">0</span>), (<span class="num">2</span>, <span class="num">1</span>), (<span class="num">3</span>, <span class="num">1</span>), (<span class="num">4</span>, <span class="num">0</span>)]   <span class="cm"># (x, y) pairs</span>
+
+<span class="kw">def</span> <span class="fn">train_line_step</span>(w, b, lr=<span class="num">0.05</span>):
+    dw, db = <span class="num">0.0</span>, <span class="num">0.0</span>
+    N = <span class="fn">len</span>(data)
+    <span class="kw">for</span> x, y <span class="kw">in</span> data:
+        err = (w * x + b) - y
+        dw += (<span class="num">2</span> / N) * err * x
+        db += (<span class="num">2</span> / N) * err
+    <span class="kw">return</span> w - lr * dw, b - lr * db</pre></div>
+
+        <button class="code-toggle" data-target="lineWhyNote" data-open-label="Hide explanation" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Was gradient descent always how lines were fit?</span>
+        </button>
+        <div class="note-reveal" id="lineWhyNote">
+          <h4>No — linear regression has a one-shot closed form.</h4>
+          <p>For any linear regression, the optimal weights can be computed in a single formula known since Legendre (1805) and Gauss (1809):</p>
+          <p style="text-align:center; font-family:'Fira Code',monospace; font-size:14px; background:var(--bg); padding:8px; border-radius:4px;"><strong>w* = (XᵀX)⁻¹ Xᵀy</strong></p>
+          <p>One matrix inversion, one multiplication. <strong>Exact</strong> answer, no iteration. For our 4 points it gives w ≈ 0, b ≈ 0.5 (the horizontal line at the mean) with MSE = 0.25 — the same place GD plateaus, just <em>instantly</em>.</p>
+          <p><strong>So why use GD here?</strong> Two reasons:</p>
+          <p><strong>1. It scales.</strong> The closed form needs <code>(XᵀX)⁻¹</code> — an O(d³) matrix inversion. For datasets with millions of features this is infeasible. GD does O(nd) per step.</p>
+          <p><strong>2. It generalises.</strong> Past stage 1, there is no closed form. The moment we add a sigmoid (stage 2) the loss isn't quadratic anymore and the normal equation breaks. <strong>Gradient descent is the only general-purpose tool that scales from a line all the way to a transformer.</strong></p>
+          <p class="footnote">Other algorithms exist too — SGD (mini-batch), Adam (adaptive lr per parameter), Newton's method (uses 2nd derivatives), L-BFGS, conjugate gradient. All variations on "follow the gradient downhill". We use plain GD here because it's the simplest version of the framework.</p>
+        </div>
+      </div>
+
+      <div class="viz-col">
+        <div class="col-title">architecture</div>
+        <svg id="lineArch" width="460" height="90" viewBox="0 0 460 90" aria-label="line architecture"></svg>
+        <div class="col-title" style="margin-top:18px;">the line vs the data</div>
+        <svg id="linePlot" width="460" height="380" viewBox="0 0 460 380" aria-label="line plot"></svg>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button disabled>← previous</button>
+      <button class="primary" onclick="showPanel(1)">bend the line →</button>
+    </div>
+  </div>
+
+  <!-- =========================================== STAGE 2 — BEND -->
+  <div class="panel" id="panel-1" role="tabpanel">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">02 — Bend</div>
+        <h2>Pipe the line through an S. You get a neuron.</h2>
+        <p class="helper">σ(z) takes any real number and squashes it into the range (0, 1). Apply it to <em>your</em> line from before. The line bends, but it's still monotonic — it only goes one way.</p>
+      </div>
+      <div class="progress">stage <strong>2</strong> of 7</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">parameters</div>
+        <div class="formula-strip">
+          <div class="eq">z = <span class="var" id="bendW">1.00</span>·x + <span class="var" id="bendB">−2.50</span></div>
+          <div class="eq" style="margin-top:6px;">ŷ = σ(z) = 1 / (1 + e<sup>−z</sup>)</div>
+          <div style="font-size:12px; color:var(--text-dim); margin-top:8px; font-style:italic; line-height:1.5;">
+            σ caps the output at (0, 1). The line <em>z</em> keeps going, but ŷ flattens against the ceiling and floor &mdash; <strong>that flattening is the bend</strong>.
+          </div>
+          <div class="loss">loss (MSE) &nbsp;=&nbsp; <span class="num" id="bendLoss">0.000</span></div>
+          <div class="hint" id="bendHint">A single S curve is still one-directional. Try to fit the bump — you can't.</div>
+        </div>
+        <div class="slider-block">
+          <div class="row-top"><span class="name">w</span><span class="val" id="bendWVal">1.00</span></div>
+          <input type="range" id="bendWSlider" min="-5" max="5" step="0.05" value="1.00" aria-label="weight w">
+        </div>
+        <div class="slider-block">
+          <div class="row-top"><span class="name">b</span><span class="val" id="bendBVal">−2.50</span></div>
+          <input type="range" id="bendBSlider" min="-10" max="10" step="0.1" value="-2.50" aria-label="bias b">
+        </div>
+
+        <div class="train-row">
+          <button class="train-btn" id="bendTrainBtn" aria-label="Train via gradient descent">
+            <span class="icon">▶</span><span class="text">Train</span>
+          </button>
+          <button class="icon-btn" id="bendRandomBtn" title="Random init" aria-label="Randomize parameters">🎲</button>
+        </div>
+        <div class="train-meta" id="bendTrainMeta">gradient descent · lr=1.5</div>
+        <button class="code-toggle" data-target="bendCode" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Show training code</span>
+        </button>
+        <div class="code-reveal" id="bendCode"><pre><span class="kw">from</span> math <span class="kw">import</span> exp
+
+<span class="kw">def</span> <span class="fn">sigmoid</span>(z):
+    <span class="kw">return</span> <span class="num">1</span> / (<span class="num">1</span> + <span class="fn">exp</span>(-z))
+
+<span class="cm"># ŷ = σ(z),  z = wx + b</span>
+<span class="cm"># σ'(z) = σ(z) · (1 − σ(z))   ← the chain-rule term</span>
+<span class="cm"># dL/dw = (2/N) Σ (ŷ − y) · σ'(z) · x</span>
+<span class="cm"># dL/db = (2/N) Σ (ŷ − y) · σ'(z)</span>
+
+<span class="kw">def</span> <span class="fn">train_bend_step</span>(w, b, lr=<span class="num">1.5</span>):
+    dw, db = <span class="num">0.0</span>, <span class="num">0.0</span>
+    N = <span class="fn">len</span>(data)
+    <span class="kw">for</span> x, y <span class="kw">in</span> data:
+        z   = w * x + b
+        yh  = <span class="fn">sigmoid</span>(z)
+        err = yh - y
+        dp  = yh * (<span class="num">1</span> - yh)         <span class="cm"># σ'(z)</span>
+        dw += (<span class="num">2</span> / N) * err * dp * x
+        db += (<span class="num">2</span> / N) * err * dp
+    <span class="kw">return</span> w - lr * dw, b - lr * db</pre></div>
+
+        <button class="code-toggle" data-target="bendWhyNote" data-open-label="Hide explanation" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Why σ here — and what real models use instead</span>
+        </button>
+        <div class="note-reveal" id="bendWhyNote">
+          <h4>σ is a teaching choice. Production uses ReLU.</h4>
+          <p>The sigmoid <strong>saturates</strong> at both ends — for large <code>|z|</code> the curve flattens, and its derivative collapses toward zero. That breaks training in two ways.</p>
+
+          <p><strong>1. Capped gradient.</strong> The derivative is <code>σ'(z) = σ(z)·(1−σ(z))</code>. Both factors live in (0, 1) and sum to 1, so their product is biggest when they're equal — at <code>σ(z) = 0.5</code>, which is at <code>z = 0</code>:</p>
+          <table>
+            <tr><th>z</th><th>σ(z)</th><th>σ'(z)</th></tr>
+            <tr><td>0</td><td>0.500</td><td class="max">0.250 ← max</td></tr>
+            <tr><td>±2</td><td>0.881</td><td>0.105</td></tr>
+            <tr><td>±5</td><td>0.993</td><td>0.007</td></tr>
+            <tr><td>±10</td><td>≈ 1</td><td>0.00005</td></tr>
+          </table>
+          <p>No matter what σ sees, its gradient is <strong>≤ 0.25</strong>. That ceiling is the problem.</p>
+
+          <p><strong>2. Vanishing gradient.</strong> Backprop through N layers multiplies N of those derivatives. For a 10-layer sigmoid network, the best-case product is <code>0.25¹⁰ ≈ 10⁻⁶</code>. The signal arriving at the first layer is rounding-error small — early layers can't learn.</p>
+
+          <p><strong>The fix: ReLU.</strong> <code>ReLU(z) = max(0, z)</code>. For positive <code>z</code>, the derivative is exactly <strong>1</strong>. No saturation, no vanishing — through 10 layers the signal is still at full strength.</p>
+
+          <p class="footnote">Production today: GPT, Llama, Claude all use smooth ReLU variants (GELU, SwiGLU). We use σ on this page because the bend is visually intuitive and the math is small enough to do by hand.</p>
+        </div>
+      </div>
+
+      <div class="viz-col">
+        <div class="col-title">architecture</div>
+        <svg id="bendArch" width="460" height="90" viewBox="0 0 460 90" aria-label="neuron architecture"></svg>
+        <div class="col-title" style="margin-top:18px;">line (top) → bent (bottom)</div>
+        <svg id="bendPlot" width="460" height="380" viewBox="0 0 460 380" aria-label="line and sigmoid plot"></svg>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button onclick="showPanel(0)">← line</button>
+      <button class="primary" onclick="showPanel(2)">stack two →</button>
+    </div>
+  </div>
+
+  <!-- =========================================== STAGE 3 — STACK -->
+  <div class="panel" id="panel-2" role="tabpanel">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">03 — Stack</div>
+        <h2>Two bends, subtracted. Now we can fit any shape.</h2>
+        <p class="helper">One neuron rises, the other catches up. Their difference makes a bump. <strong>This is a multi-layer perceptron</strong> — the workhorse of every modern model.</p>
+      </div>
+      <div class="progress">stage <strong>3</strong> of 7</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">parameters</div>
+        <div class="formula-strip">
+          <div class="eq">ŷ = <span id="stackActL1">σ</span>(<span class="var">w₁</span>x + <span class="var">b₁</span>) − <span id="stackActL2">σ</span>(<span class="v2">w₂</span>x + <span class="v2">b₂</span>)</div>
+          <div class="loss">loss (MSE) &nbsp;=&nbsp; <span class="num" id="stackLoss">0.000</span></div>
+          <div class="hint" id="stackHint">A single S can't make a bump. Two of them, subtracted, can.</div>
+        </div>
+
+        <div class="sample-mode" style="margin-bottom:12px;">
+          <label for="stackActSel">activation:</label>
+          <select id="stackActSel">
+            <option value="sigmoid" selected>σ (sigmoid)</option>
+            <option value="relu">ReLU (modern)</option>
+          </select>
+        </div>
+
+        <div class="neuron-group n1">
+          <div class="group-label">neuron 1 (rises)</div>
+          <div class="slider-block n1">
+            <div class="row-top"><span class="name n1">w₁</span><span class="val" id="stackW1Val">5.00</span></div>
+            <input type="range" id="stackW1Slider" min="-10" max="10" step="0.1" value="5.00" aria-label="w1">
+          </div>
+          <div class="slider-block n1">
+            <div class="row-top"><span class="name n1">b₁</span><span class="val" id="stackB1Val">−7.50</span></div>
+            <input type="range" id="stackB1Slider" min="-25" max="25" step="0.1" value="-7.50" aria-label="b1">
+          </div>
+        </div>
+
+        <div class="neuron-group n2">
+          <div class="group-label">neuron 2 (catches up)</div>
+          <div class="slider-block n2">
+            <div class="row-top"><span class="name n2">w₂</span><span class="val" id="stackW2Val">5.00</span></div>
+            <input type="range" id="stackW2Slider" min="-10" max="10" step="0.1" value="5.00" aria-label="w2">
+          </div>
+          <div class="slider-block n2">
+            <div class="row-top"><span class="name n2">b₂</span><span class="val" id="stackB2Val">−17.50</span></div>
+            <input type="range" id="stackB2Slider" min="-25" max="25" step="0.1" value="-17.50" aria-label="b2">
+          </div>
+        </div>
+
+        <div class="train-row">
+          <button class="train-btn" id="stackTrainBtn" aria-label="Train via gradient descent">
+            <span class="icon">▶</span><span class="text">Train</span>
+          </button>
+          <button class="icon-btn" id="stackRandomBtn" title="Random init — sometimes gets stuck, retry if so" aria-label="Randomize parameters">🎲</button>
+        </div>
+        <div class="train-meta" id="stackTrainMeta">gradient descent · lr=2.5 · tip: 🎲 random init, then ▶ Train</div>
+        <button class="code-toggle" data-target="stackCode" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Show training code</span>
+        </button>
+        <div class="code-reveal" id="stackCode"><pre><span class="cm"># Two activations available; pick one.</span>
+<span class="kw">def</span> <span class="fn">sigmoid</span>(z): <span class="kw">return</span> <span class="num">1</span> / (<span class="num">1</span> + <span class="fn">exp</span>(-z))
+<span class="kw">def</span> <span class="fn">sigmoid_grad</span>(z):
+    s = <span class="fn">sigmoid</span>(z); <span class="kw">return</span> s * (<span class="num">1</span> - s)
+
+<span class="kw">def</span> <span class="fn">relu</span>(z):      <span class="kw">return</span> <span class="fn">max</span>(<span class="num">0</span>, z)
+<span class="kw">def</span> <span class="fn">relu_grad</span>(z): <span class="kw">return</span> <span class="num">1.0</span> <span class="kw">if</span> z &gt; <span class="num">0</span> <span class="kw">else</span> <span class="num">0.0</span>
+
+act, act_grad = sigmoid, sigmoid_grad           <span class="cm"># or: relu, relu_grad</span>
+
+<span class="cm"># ŷ = act(z₁) − act(z₂),  z_k = w_k·x + b_k</span>
+<span class="cm"># dL/dw₁ =  (2/N) Σ (ŷ − y) · act_grad(z₁) · x</span>
+<span class="cm"># dL/dw₂ = −(2/N) Σ (ŷ − y) · act_grad(z₂) · x   ← note minus</span>
+
+<span class="kw">def</span> <span class="fn">train_stack_step</span>(w1, b1, w2, b2, lr=<span class="num">2.5</span>):   <span class="cm"># use lr ≈ 0.15 for ReLU</span>
+    dw1 = db1 = dw2 = db2 = <span class="num">0.0</span>
+    N = <span class="fn">len</span>(data)
+    <span class="kw">for</span> x, y <span class="kw">in</span> data:
+        z1, z2 = w1 * x + b1, w2 * x + b2
+        a1, a2 = <span class="fn">act</span>(z1), <span class="fn">act</span>(z2)
+        err = (a1 - a2) - y
+        f = (<span class="num">2</span> / N) * err
+        dw1 +=  f * <span class="fn">act_grad</span>(z1) * x
+        db1 +=  f * <span class="fn">act_grad</span>(z1)
+        dw2 += -f * <span class="fn">act_grad</span>(z2) * x
+        db2 += -f * <span class="fn">act_grad</span>(z2)
+    <span class="kw">return</span> (w1 - lr * dw1, b1 - lr * db1,
+            w2 - lr * dw2, b2 - lr * db2)</pre></div>
+
+        <button class="code-toggle" data-target="stackWhyNote" data-open-label="Hide explanation" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Why two neurons are barely enough — and what ReLU fixes</span>
+        </button>
+        <div class="note-reveal" id="stackWhyNote">
+          <h4>Sigmoid works here. At scale, it breaks.</h4>
+          <p><strong>1. The saturation problem returns.</strong> Same math as Stage 2 — <code>σ'(z) ≤ 0.25</code>. Stack 10 layers and the gradient shrinks by <code>0.25¹⁰ ≈ 10⁻⁶</code>. Early layers can't hear the loss. This is the <strong>vanishing gradient</strong>.</p>
+          <p><strong>2. Random init makes neurons die.</strong> Hit 🎲 a few times and watch — sometimes one neuron's <code>b</code> lands far enough into σ's flat tail that its gradient is essentially zero. The neuron never learns; your MLP collapses to a single neuron. We tightened the init range to make this rare, but at scale (with thousands of neurons) some always end up dead.</p>
+          <p><strong>3. ReLU fixes both.</strong> <code>ReLU(z) = max(0, z)</code>. Derivative is exactly <strong>1</strong> for any <code>z &gt; 0</code>, regardless of magnitude. No saturation, no vanishing. Try the <strong>activation toggle above</strong> — switch to ReLU and watch the bend become a hard corner, the loss jump (defaults aren't optimal for ReLU), then hit ▶ Train and watch GD find a new fit. ReLU can actually reach <strong>loss = 0</strong> on this data — the corners line up with the data exactly.</p>
+          <p>The catch: <strong>dying ReLU</strong> — if a neuron always sees <code>z &lt; 0</code>, gradient is 0 and it never recovers. But that's one-sided; σ saturates on both ends.</p>
+          <p class="footnote">Production today: GPT, Llama, Claude all use smooth ReLU variants — GELU, SwiGLU. Same family, smoother gradients.</p>
+        </div>
+      </div>
+
+      <div class="viz-col">
+        <div class="col-title">architecture (MLP with 2 hidden neurons)</div>
+        <svg id="stackArch" width="460" height="170" viewBox="0 0 460 170" aria-label="MLP architecture"></svg>
+        <div class="col-title" style="margin-top:18px;">two S-curves and their difference</div>
+        <svg id="stackPlot" width="460" height="380" viewBox="0 0 460 380" aria-label="MLP plot"></svg>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button onclick="showPanel(1)">← bend</button>
+      <button class="primary" onclick="showPanel(3)">now apply to text →</button>
+    </div>
+  </div>
+
+  <!-- =========================================== STAGE 4 — EMBED -->
+  <div class="panel" id="panel-3" role="tabpanel">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">04 — Embed</div>
+        <h2>Each word becomes a point in space.</h2>
+        <p class="helper">Same kind of vector the MLP ate in Stage 3 — just three numbers — except we <em>look it up</em> in a table instead of typing it. One row of <code>E</code> per word. <strong>Same word in, same vector out — every time.</strong></p>
+      </div>
+      <div class="progress">stage <strong>4</strong> of 7</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">embedding matrix E · 9 words × 3 dims</div>
+        <div id="tokenGrid"></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;">
+          <div style="font-family:'Fira Code',monospace; font-size:11px; color:var(--text-dim); line-height:1.55;">
+            Drag any slider — everything downstream recomputes live. Pushing a word's embedding far enough can hijack the next-word prediction toward that word, because <code>E</code> is also used to <em>score</em> the next word (tied unembedding). <strong>↺ to restore.</strong>
+          </div>
+          <button class="icon-btn" id="resetEmbedBtn" title="Restore the trained embeddings" style="font-size:14px; padding:6px 12px; flex-shrink:0; height:auto;">↺ reset</button>
+        </div>
+      </div>
+      <div class="viz-col">
+        <div class="col-title">words as points (showing d₀, d₁)</div>
+        <svg id="embedPlot" width="460" height="380" viewBox="0 0 460 380" aria-label="embeddings plot"></svg>
+        <div style="font-family:'Manrope',sans-serif; font-size:13px; color:var(--text-dim); margin-top:8px; line-height:1.55; max-width:420px;">
+          The prompt words <span style="color:#111;background:var(--accent-yellow);padding:1px 6px;border-radius:3px;font-family:'Fira Code',monospace;font-size:12px;">a fluffy blue creature</span> are highlighted. The third axis <code>d₂</code> isn't drawn — but it's there, and the math uses all three.
+        </div>
+      </div>
+    </div>
+
+    <!-- The limitation of a lookup — same word, different meanings -->
+    <div style="background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:18px 22px; margin-top:28px; font-size:14px; line-height:1.6;">
+      <div style="font-family:'Fira Code',monospace; font-size:11px; color:var(--accent); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px;">but a lookup is context-free — same word, three meanings</div>
+      <p style="margin-bottom:12px;">A pure lookup can't disambiguate. <code>mole</code> means a different thing in each of these sentences, yet the lookup hands back the <em>same</em> vector for all three:</p>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px;">
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:13px;">
+          <div>American shrew <strong>mole</strong></div>
+          <div style="font-size:12px; color:var(--text-dim); margin-top:3px;">🐀 the animal</div>
+        </div>
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:13px;">
+          <div>one <strong>mole</strong> of CO₂</div>
+          <div style="font-size:12px; color:var(--text-dim); margin-top:3px;">🧪 the unit</div>
+        </div>
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:13px;">
+          <div>biopsy of the <strong>mole</strong></div>
+          <div style="font-size:12px; color:var(--text-dim); margin-top:3px;">🩺 the skin spot</div>
+        </div>
+      </div>
+      <p style="margin-bottom:0;">
+        That's the limitation. <strong>Attention's job (next stage)</strong> is to compute a nudge — using the surrounding words — that moves each embedding toward what it actually means <em>here</em>.
+        <span style="color:var(--text-dim); font-size:12px; font-style:italic;">— Example from <a href="https://www.youtube.com/watch?v=eMlx5fFNoYc" target="_blank" rel="noopener" style="color:var(--accent);">3Blue1Brown</a>.</span>
+      </p>
+    </div>
+
+    <div class="panel-nav">
+      <button onclick="showPanel(2)">← stack</button>
+      <button class="primary" onclick="showPanel(4)">attend →</button>
+    </div>
+  </div>
+
+  <!-- =========================================== STAGE 5 — ATTEND -->
+  <div class="panel" id="panel-4" role="tabpanel">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">05 — Attend</div>
+        <h2>Nudge each word's embedding using its surroundings.</h2>
+        <p class="helper">After Stage 4 every word is a context-free lookup. Attention computes a <strong>nudge (Δe)</strong> for each one — using <strong>Q·K dot products</strong> and softmax — that moves it toward what it actually means <em>here</em>. The result is the <strong>refined embedding</strong> 3B1B calls <code>e'</code>; in our code we write it <code>h₁</code> since it flows straight into the MLP next.</p>
+      </div>
+      <div class="progress">stage <strong>5</strong> of 7</div>
+    </div>
+
+    <!-- Intuition: Q, K, V on 3B1B's literal example — which is our live prompt -->
+    <div style="background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:18px 22px; margin-bottom:24px; font-size:14px; line-height:1.6;">
+      <div style="font-family:'Fira Code',monospace; font-size:11px; color:var(--accent); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px;">Q, K, V — live, on 3B1B's example</div>
+
+      <p style="margin-bottom:8px;">Our prompt <em>is</em> Grant Sanderson's example phrase: <strong>a fluffy blue creature</strong>. Picture <code>creature</code> asking:</p>
+      <p style="font-style:italic; padding:8px 14px; background:var(--bg); border-left:2px solid var(--accent); margin:0 0 12px 0;">"Are there any adjectives sitting in front of me?"</p>
+      <p style="margin-bottom:8px;">
+        That question is its <span style="color:#503AA8;font-weight:600;">Query (Q)</span>.
+        <code>fluffy</code> and <code>blue</code> each hold up a <span style="color:#1976d2;font-weight:600;">Key (K)</span> answering "yes — I'm an adjective, here." Big <code>Q·K</code> dot product → big <strong>attention weight</strong> <code>α</code> after softmax. So far that only decides <em>how much</em> to listen to each word.</p>
+      <p style="margin-bottom:8px;"><strong>What</strong> each word actually contributes is its <span style="color:#2e7d32;font-weight:600;">Value (V)</span>. Think of it as two separate things a word carries: its <span style="color:#1976d2;font-weight:600;">Key</span> is the label it advertises to be <em>matched on</em>; its <span style="color:#2e7d32;font-weight:600;">Value</span> is the payload it <em>hands over</em> once matched. Take each word's <span style="color:#2e7d32;font-weight:600;">V</span>, scale it by that word's weight <code>α</code>, and add them all up → the nudge <strong>Δe</strong>. Add Δe to <code>creature</code>'s embedding → it now means <strong>fluffy blue creature</strong>.
+      </p>
+      <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin:14px 0;">
+        <div style="font-family:'Fira Code',monospace; font-size:11px; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px;">the whole stage in one line · <span style="text-transform:none;">Vaswani et al., <em>Attention Is All You Need</em> (2017)</span></div>
+        <div style="font-family:'Fira Code',monospace; font-size:17px; color:var(--text); text-align:center; margin:8px 0 14px;">
+          Attention(<span style="color:#503AA8;font-weight:600;">Q</span>,&nbsp;<span style="color:#1976d2;font-weight:600;">K</span>,&nbsp;<span style="color:#2e7d32;font-weight:600;">V</span>) = softmax<span style="color:var(--text-dim);">(</span><span style="color:#503AA8;font-weight:600;">Q</span><span style="color:#1976d2;font-weight:600;">Kᵀ</span><span style="color:var(--text-dim);"> / √d</span><span style="color:var(--text-dim);">)</span>&nbsp;<span style="color:#2e7d32;font-weight:600;">V</span>
+        </div>
+        <div style="font-size:13px; line-height:1.65;">
+          Inside-out: <span style="color:#503AA8;font-weight:600;">Q</span><span style="color:#1976d2;font-weight:600;">Kᵀ</span> scores every query against every key → <code>softmax</code> turns those scores into the weights <code>α</code> (sum to 1) → those weights mix the <span style="color:#2e7d32;font-weight:600;">values&nbsp;V</span>. The <code>softmax(…)</code> half is <em>which</em> words; the <span style="color:#2e7d32;font-weight:600;">V</span> half is <em>what</em> they carry. Their product is the nudge <strong>Δe</strong>.
+        </div>
+        <div style="font-size:12px; color:var(--text-dim); margin-top:9px;">
+          Our toy drops the three learned projection matrices (so <span style="color:#503AA8;font-weight:600;">Q</span>=<span style="color:#1976d2;font-weight:600;">K</span>=<span style="color:#2e7d32;font-weight:600;">V</span>= the raw embedding) and drops <code>√d</code> — both disclosed in the note below. Every other symbol on this page is exactly this line.
+        </div>
+      </div>
+      <p style="margin-bottom:0; color:var(--text);">The diagrams below show this happening live, with our trained weights.</p>
+      <p style="font-size:12px; color:var(--text-dim); margin-top:10px;">
+        Example sentence and Q/K/V framing from Grant Sanderson's
+        <a href="https://www.youtube.com/watch?v=eMlx5fFNoYc" target="_blank" rel="noopener" style="color:var(--accent);">3Blue1Brown — <em>Attention in transformers, visually explained</em></a>.
+      </p>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">embeddings · edit here or on Stage 4</div>
+        <div id="tokenGridAttend"></div>
+
+        <div class="col-title" style="margin-top:16px;">live attention · query = creature</div>
+        <div class="eq-stack">
+          <div class="eq-line"><span class="lbl">Q_creature =</span> <span class="v" id="attQLast">[…]</span></div>
+        </div>
+        <table class="value-table" id="attendTable">
+          <thead><tr><th>tok (K)</th><th class="num-cell">Q·K</th><th class="num-cell">α</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div style="font-family:'Fira Code',monospace; font-size:11px; color:var(--text-dim); margin-top:-6px;">
+          Σ α = <span style="color:var(--text);" id="attendSum">1.000</span>
+        </div>
+
+        <button class="code-toggle" data-target="attendCode" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Show attention code</span>
+        </button>
+        <div class="code-reveal" id="attendCode"><pre><span class="kw">from</span> math <span class="kw">import</span> exp
+
+<span class="kw">def</span> <span class="fn">softmax</span>(xs):
+    m = <span class="fn">max</span>(xs)
+    e = [<span class="fn">exp</span>(x - m) <span class="kw">for</span> x <span class="kw">in</span> xs]
+    <span class="kw">return</span> [v / <span class="fn">sum</span>(e) <span class="kw">for</span> v <span class="kw">in</span> e]
+
+<span class="kw">def</span> <span class="fn">dot</span>(a, b):
+    <span class="kw">return</span> <span class="fn">sum</span>(x * y <span class="kw">for</span> x, y <span class="kw">in</span> <span class="fn">zip</span>(a, b))
+
+<span class="cm"># prompt "a fluffy blue creature" → rows of E (each is 3 numbers)</span>
+X = [E[i] <span class="kw">for</span> i <span class="kw">in</span> (<span class="num">0</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>)]
+
+<span class="cm"># identity W_Q = W_K = W_V = I: each embedding is its own Q, K, V</span>
+q = X[-<span class="num">1</span>]                          <span class="cm"># creature is the asker</span>
+scores = [<span class="fn">dot</span>(q, k) <span class="kw">for</span> k <span class="kw">in</span> X]
+alpha  = <span class="fn">softmax</span>(scores)            <span class="cm"># weights, sum to 1</span>
+
+<span class="cm"># mix the values, then add back onto the asker (residual)</span>
+a  = [<span class="fn">sum</span>(alpha[i]*X[i][d] <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="fn">len</span>(X))) <span class="kw">for</span> d <span class="kw">in</span> <span class="fn">range</span>(<span class="num">3</span>)]
+h1 = [X[-<span class="num">1</span>][d] + a[d] <span class="kw">for</span> d <span class="kw">in</span> <span class="fn">range</span>(<span class="num">3</span>)]</pre></div>
+
+        <button class="code-toggle" data-target="attendNote" data-open-label="Hide note" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Why is Q = K = V here? And no √d scaling?</span>
+        </button>
+        <div class="note-reveal" id="attendNote">
+          <h4>Two teaching shortcuts.</h4>
+          <p>In a real transformer each embedding is reshaped into Q, K, V by <strong>three trained matrices</strong> (<code>W_Q</code>, <code>W_K</code>, <code>W_V</code>) — most of attention's learned cleverness lives there. We set them to the identity, so <strong>each word's embedding plays all three roles</strong>. The mechanism is identical; only the projections are trivial.</p>
+          <p>Real models also divide the scores by <code>√d</code> before softmax, to stop them blowing up as dimension grows. With <code>d = 3</code> it barely matters, so we skip it. <strong>Disclosed, not hidden.</strong></p>
+        </div>
+      </div>
+
+      <div class="viz-col">
+        <div class="col-title">creature's question · every earlier word's answer</div>
+        <svg id="attendDiagram" width="600" height="250" viewBox="0 0 600 250" aria-label="attention diagram"></svg>
+        <div style="font-family:'Manrope',sans-serif; font-size:13px; color:var(--text-dim); margin-top:6px; line-height:1.55; max-width:540px;">
+          Arrow thickness = attention weight <code>α</code> (softmax of <code>Q·K</code>). The number on each arrow is the <code>Q·K</code> dot product before softmax. Drag any Stage-4 slider and every arrow shifts in real time.
+          <br><span style="font-size:12px;">Each card shows <span style="color:#1976d2;font-weight:600;">KEY</span> · <span style="color:#2e7d32;font-weight:600;">VALUE</span> on the same box because our identity projections make them the <em>same vector here</em> — the labels mark the two <em>roles</em> the embedding plays, not two different numbers.</span>
+        </div>
+
+        <div class="col-title" style="margin-top:24px;">the nudge · Δe = Σ αᵢ · Vᵢ · then add to creature</div>
+        <svg id="attendMixDiagram" width="600" height="240" viewBox="0 0 600 240" aria-label="attention mix and residual"></svg>
+        <div style="font-family:'Manrope',sans-serif; font-size:13px; color:var(--text-dim); margin-top:6px; line-height:1.55; max-width:540px;">
+          The mix is <strong>Δe</strong> — the nudge attention computes. Add it to <code>x_creature</code> to get <code>h₁</code> (= 3B1B's <code>e'_creature</code>): <em>creature, now knowing it's fluffy and blue</em>. This is what the MLP eats next.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button onclick="showPanel(3)">← embed</button>
+      <button class="primary" onclick="showPanel(5)">into the MLP →</button>
+    </div>
+  </div>
+
+  <!-- =========================================== STAGE 6 — MLP -->
+  <div class="panel" id="panel-5" role="tabpanel">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">06 — MLP</div>
+        <h2>You already built this. Back in Stage 3.</h2>
+        <p class="helper">The attention output <code>h₁</code> runs through a layer of <code>ReLU</code> neurons — the same stack of bent lines you trained earlier — and the result is added back on (residual). This block is where "what tends to follow what" actually lives.</p>
+      </div>
+      <div class="progress">stage <strong>6</strong> of 7</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">the Stage-3 machine, vectorised</div>
+        <div style="font-size:13px; color:var(--text-dim); line-height:1.6; margin-bottom:14px;">
+          Stage 3 took one number <code>x</code> and stacked bent lines to fit a shape.
+          Here the same neurons take the <strong>3-number vector</strong> <code>h₁</code>
+          and reshape it: same <code>ReLU</code>, same <code>w·input + b</code>, same
+          residual idea — only the input got wider. <strong>Nothing new to learn.</strong>
+        </div>
+
+        <div class="formula-strip">
+          <div class="eq" style="font-size:13px;">h₂ = h₁ + W₂·ReLU(W₁·h₁ + b₁) + b₂</div>
+          <div class="hint" id="mlpHint">The MLP does the heavy lifting — bypass it to see.</div>
+        </div>
+
+        <div class="sample-mode" style="margin-bottom:14px;">
+          <label for="mlpToggle">MLP:</label>
+          <select id="mlpToggle">
+            <option value="on" selected>on (full model)</option>
+            <option value="off">bypass (skip the MLP)</option>
+          </select>
+        </div>
+
+        <div class="eq-stack">
+          <div class="eq-line"><span class="lbl">next word, MLP on:</span> <span class="yes" id="mlpPredOn">…</span></div>
+          <div class="eq-line"><span class="lbl">next word, bypassed:</span> <span class="v2" id="mlpPredOff">…</span></div>
+        </div>
+        <div style="font-family:'Manrope',sans-serif; font-size:12px; color:var(--text-dim); line-height:1.55;">
+          Without the MLP the model has only the attention-blended vector — it can't tell <em>what the creature did</em>. The MLP is the knowledge.
+        </div>
+
+        <button class="code-toggle" data-target="mlpCode" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Show MLP code &amp; weights</span>
+        </button>
+        <div class="code-reveal" id="mlpCode"><pre><span class="kw">def</span> <span class="fn">relu</span>(v):    <span class="kw">return</span> [<span class="fn">max</span>(<span class="num">0.0</span>, x) <span class="kw">for</span> x <span class="kw">in</span> v]
+<span class="kw">def</span> <span class="fn">matvec</span>(M, v): <span class="kw">return</span> [<span class="fn">dot</span>(row, v) <span class="kw">for</span> row <span class="kw">in</span> M]
+<span class="kw">def</span> <span class="fn">add</span>(a, b):  <span class="kw">return</span> [x + y <span class="kw">for</span> x, y <span class="kw">in</span> <span class="fn">zip</span>(a, b)]
+
+<span class="cm"># h1 is the attention output from Stage 5.</span>
+<span class="cm"># W1, b1, W2, b2 are trained weights — fit offline, baked in.</span>
+hidden = <span class="fn">relu</span>(<span class="fn">add</span>(<span class="fn">matvec</span>(W1, h1), b1))   <span class="cm"># 6 ReLU neurons</span>
+delta  = <span class="fn">add</span>(<span class="fn">matvec</span>(W2, hidden), b2)     <span class="cm"># back down to 3 numbers</span>
+h2     = <span class="fn">add</span>(h1, delta)                  <span class="cm"># residual: h2 = h1 + delta</span></pre></div>
+      </div>
+
+      <div class="viz-col">
+        <div class="col-title">h₁ → ReLU neurons → Δ → h₂ = h₁ + Δ</div>
+        <svg id="mlpDiagram" width="540" height="380" viewBox="0 0 540 380" aria-label="MLP diagram"></svg>
+        <div style="font-family:'Manrope',sans-serif; font-size:13px; color:var(--text-dim); margin-top:8px; line-height:1.55; max-width:500px;">
+          Filled neurons fired (<code>ReLU &gt; 0</code>); greyed ones stayed silent. Same picture as the Stage-3 architecture — just three inputs instead of one.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button onclick="showPanel(4)">← attend</button>
+      <button class="primary" onclick="showPanel(6)">generate →</button>
+    </div>
+  </div>
+
+  <!-- =========================================== STAGE 7 — GENERATE -->
+  <div class="panel" id="panel-6" role="tabpanel">
+    <div class="panel-header">
+      <div>
+        <div class="step-label">07 — Generate</div>
+        <h2>Turn the vector into a word. Then pick one.</h2>
+        <p class="helper">Dot <code>h₂</code> against every word's embedding → one <strong>logit</strong> per word. Softmax → probabilities. <strong>Temperature</strong> reshapes them. Then <strong>sample</strong> — and append. Do it again. That's generation.</p>
+      </div>
+      <div class="progress">stage <strong>7</strong> of 7</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="controls-col">
+        <div class="col-title">controls</div>
+        <div class="slider-block">
+          <div class="row-top"><span class="name">T (temperature)</span><span class="val" id="tempVal">1.00</span></div>
+          <input type="range" id="tempSlider" min="0.1" max="2.5" step="0.05" value="1.00" aria-label="sampling temperature">
+        </div>
+        <div class="sample-mode">
+          <label for="sampleMode">mode:</label>
+          <select id="sampleMode">
+            <option value="sample" selected>sample (stochastic)</option>
+            <option value="greedy">greedy (argmax)</option>
+          </select>
+        </div>
+        <div class="sample-btn-row">
+          <button class="sample-btn" id="sampleBtn">Generate next word</button>
+          <button class="icon-btn" id="resetSampleBtn" title="Restart from 'a fluffy blue creature'">↺</button>
+        </div>
+
+        <div class="sample-history" id="sampleHistory" role="status" aria-live="polite" aria-label="generated sentence so far"></div>
+
+        <button class="code-toggle" data-target="sampleCode" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Show generation code</span>
+        </button>
+        <div class="code-reveal" id="sampleCode"><pre><span class="kw">import</span> random, math
+
+<span class="cm"># logit per word: dot h2 with each row of E (tied weights, U = Eᵀ)</span>
+logits = [<span class="fn">dot</span>(h2, E[v]) <span class="kw">for</span> v <span class="kw">in</span> <span class="fn">range</span>(<span class="fn">len</span>(VOCAB))]
+
+<span class="kw">def</span> <span class="fn">generate</span>(logits, T=<span class="num">1.0</span>, greedy=<span class="kw">False</span>):
+    <span class="kw">if</span> greedy <span class="kw">or</span> T &lt;= <span class="num">0</span>:
+        <span class="kw">return</span> logits.<span class="fn">index</span>(<span class="fn">max</span>(logits))      <span class="cm"># argmax</span>
+    probs = <span class="fn">softmax</span>([l / T <span class="kw">for</span> l <span class="kw">in</span> logits])  <span class="cm"># temperature reshapes</span>
+    u, cum = random.<span class="fn">random</span>(), <span class="num">0.0</span>             <span class="cm"># inverse-CDF draw</span>
+    <span class="kw">for</span> i, p <span class="kw">in</span> <span class="fn">enumerate</span>(probs):
+        cum += p
+        <span class="kw">if</span> u &lt; cum: <span class="kw">return</span> i
+    <span class="kw">return</span> <span class="fn">len</span>(probs) - <span class="num">1</span>
+
+next_id = <span class="fn">generate</span>(logits, T=<span class="num">1.0</span>)
+prompt.<span class="fn">append</span>(VOCAB[next_id])   <span class="cm"># then run the whole pipeline again</span></pre></div>
+
+        <div style="background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:14px 16px; margin-top:16px; font-size:13px; line-height:1.6;">
+          <div style="font-family:'Fira Code',monospace; font-size:11px; color:var(--accent); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">the whole ladder, in one sentence</div>
+          <p style="margin-bottom:10px;">Attention decides <strong>which</strong> words to mix. The MLP — the stack of bent lines from Stage 3 — decides <strong>what the mix means</strong>. Unembedding turns it back into words. It's the same loss-minimising machine as the line you started with, scaled up: not a different idea, just the line, stacked and made data-aware.</p>
+          <p style="color:var(--text-dim); font-style:italic; font-size:12px; margin:0;">This toy is GPT <em>scaled up</em> — one head, one block, identity Q/K/V, no positional encoding, no √d scaling, no layer norm, weights hand-fit not trained at scale. The mechanism is the real one.</p>
+        </div>
+
+        <button class="code-toggle" data-target="verifyNote" data-open-label="Hide verification" style="margin-top:14px;" aria-expanded="false">
+          <span class="chev">⌄</span><span class="label" style="margin-left:6px;">Is this Generate button really running attention? Verify it.</span>
+        </button>
+        <div class="note-reveal" id="verifyNote">
+          <h4>Yes — and here's the audit trail.</h4>
+          <p>Every click of <strong>Generate</strong> runs a full attention → MLP → softmax pass on the current prompt. No cache, no precomputed lookup. Three independent checks back this up:</p>
+          <p><strong>1. Same constants the page ships with.</strong> The weights in <code>index.html</code> were fit by <code>tests/fit_transformer.py</code> (a ~150-line numpy + scipy script) and pasted in as constants. Re-run the fit any time; the script self-asserts the canonical numbers (<code>P(roamed) ≈ 80%</code> etc.) before printing them.</p>
+          <p><strong>2. JS = Python, to floating-point noise.</strong> <code>tests/equivalence.py</code> parses the constants AND the JS pipeline straight out of <code>index.html</code>, runs both implementations on 8 prompts × MLP on/off = 16 cases, and asserts all 784 intermediate values agree to <code>1e-9</code>. Last run: max divergence <strong>6.4 × 10⁻¹⁴</strong>.</p>
+          <p><strong>3. The rollout you see is the rollout Python computes.</strong> <code>tests/generate_rollout.py</code> simulates the exact loop the Generate button performs — same forward pass, same sampling — and prints every step's attention pattern, top probabilities, and sampled token. In greedy mode it must match the browser exactly (no RNG); in sample mode the distributions must match (the RNG differs, but probability percentages are identical).</p>
+          <p style="color:var(--text-dim); font-style:italic; font-size:12px; margin:0;">Run: <code>python3 tests/generate_rollout.py</code>. Greedy from <code>a fluffy blue creature</code> → <code>roamed</code> → <code>the</code> → <code>forest</code> → <code>.</code> Compare to clicking Generate with <em>mode = greedy</em> in the browser.</p>
+        </div>
+      </div>
+
+      <div class="viz-col">
+        <div class="col-title">logit = h₂ · E[word], then softmax(/T) → P</div>
+        <table class="value-table" id="logitTable" aria-live="polite" aria-label="next-word logits and probabilities">
+          <thead><tr><th>word</th><th class="num-cell">logit</th><th>P (with T)</th><th class="num-cell">P</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel-nav">
+      <button onclick="showPanel(5)">← MLP</button>
+      <button disabled>that's a language model</button>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Part III of <em>Neural Networks from First Principles</em> &mdash; by
+  <a href="https://aabdelfattah.me">Ahmed Abdelfattah</a>.
+  Source on <a href="https://github.com/aabdelfattah/neural-first-principle">GitHub</a>.
+  MIT licensed.
+</footer>
+
+<script>
+// =====================================================================
+// model.js — pure math, no DOM
+// =====================================================================
+const sigmoid = z => 1 / (1 + Math.exp(-z));
+
+function mse(preds, ys) {
+  let s = 0;
+  for (let i = 0; i < preds.length; i++) s += (preds[i] - ys[i]) ** 2;
+  return s / preds.length;
+}
+
+// =====================================================================
+// Stage list and scrubber
+// =====================================================================
+const STAGES = [
+  ['01', 'line'],
+  ['02', 'bend'],
+  ['03', 'stack'],
+  ['04', 'embed'],
+  ['05', 'attend'],
+  ['06', 'MLP'],
+  ['07', 'generate'],
+];
+const DIVIDER_AFTER = 2;
+
+let activeStage = 0;
+
+function buildStages() {
+  const root = document.getElementById('stages');
+  let html = '';
+  STAGES.forEach((s, i) => {
+    html += `<div class="stage ${i === activeStage ? 'active' : ''}" id="stage-${i}" data-i="${i}" role="tab" tabindex="0" onclick="showPanel(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPanel(${i});}">
+      <span class="num">${s[0]}</span>
+      <span class="label">${s[1]}</span>
+    </div>`;
+    if (i === DIVIDER_AFTER) {
+      html += `<div class="stage-divider"><span>now apply to text</span></div>`;
+    }
+  });
+  root.innerHTML = html;
+}
+
+function showPanel(i) {
+  activeStage = i;
+  document.querySelectorAll('.panel').forEach((p, j) => p.classList.toggle('active', j === i));
+  document.querySelectorAll('.stage').forEach((s, j) => s.classList.toggle('active', j === i));
+  history.replaceState(null, '', `#${i + 1}`);
+  // Prompt-mini only matters once we apply the machinery to text (stage 4+).
+  document.getElementById('promptMini').style.display = i >= 3 ? 'flex' : 'none';
+  window.scrollTo({ top: document.querySelector('.scrubber-wrap').offsetTop - 1, behavior: 'smooth' });
+}
+
+// Hash-based deep linking — F3.3
+function applyHash() {
+  const m = window.location.hash.match(/^#(\d+)$/);
+  if (m) {
+    const i = parseInt(m[1], 10) - 1;
+    if (i >= 0 && i < STAGES.length) showPanel(i);
+  }
+}
+window.addEventListener('hashchange', applyHash);
+
+// =====================================================================
+// Shared dataset for stages 1-3 (the "y goes up then down" data)
+// =====================================================================
+const FIT_DATA = [
+  { x: 1, y: 0 },
+  { x: 2, y: 1 },
+  { x: 3, y: 1 },
+  { x: 4, y: 0 },
+];
+
+// =====================================================================
+// Shared plot helpers — minimal SVG construction
+// =====================================================================
+function svgGrid(W, H, pad, xR, yR, sx, sy) {
+  let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+  for (let g = Math.ceil(xR[0]); g <= Math.floor(xR[1]); g++) {
+    s += `<line x1="${sx(g)}" y1="${pad}" x2="${sx(g)}" y2="${H - pad}" stroke="rgba(17,17,17,0.05)" stroke-width="1"/>`;
+  }
+  for (let g = Math.ceil(yR[0]); g <= Math.floor(yR[1]); g++) {
+    s += `<line x1="${pad}" y1="${sy(g)}" x2="${W - pad}" y2="${sy(g)}" stroke="rgba(17,17,17,0.05)" stroke-width="1"/>`;
+  }
+  // axes
+  s += `<line x1="${pad}" y1="${sy(0)}" x2="${W - pad}" y2="${sy(0)}" stroke="rgba(17,17,17,0.3)" stroke-width="1"/>`;
+  s += `<line x1="${sx(0)}" y1="${pad}" x2="${sx(0)}" y2="${H - pad}" stroke="rgba(17,17,17,0.3)" stroke-width="1"/>`;
+  return s;
+}
+
+function svgPath(samples, sx, sy, stroke, width = 2) {
+  let d = '';
+  samples.forEach((p, i) => { d += (i === 0 ? 'M' : 'L') + sx(p[0]) + ',' + sy(p[1]); });
+  return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}"/>`;
+}
+
+function sampleFn(fn, xR, n = 120) {
+  const out = [];
+  const step = (xR[1] - xR[0]) / n;
+  for (let i = 0; i <= n; i++) {
+    const x = xR[0] + i * step;
+    out.push([x, fn(x)]);
+  }
+  return out;
+}
+
+// =====================================================================
+// STAGE 1 — LINE
+// =====================================================================
+let lineW = 0.30, lineB = -0.10;
+
+function lineLoss() {
+  return mse(FIT_DATA.map(p => lineW * p.x + lineB), FIT_DATA.map(p => p.y));
+}
+
+function renderLine() {
+  const loss = lineLoss();
+  const fmt = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  document.getElementById('lineW').textContent = lineW.toFixed(2);
+  document.getElementById('lineB').textContent = fmt(lineB);
+  document.getElementById('lineWVal').textContent = lineW.toFixed(2);
+  document.getElementById('lineBVal').textContent = fmt(lineB);
+  document.getElementById('lineLoss').textContent = loss.toFixed(3);
+  // sync slider thumbs to current state (for training)
+  document.getElementById('lineWSlider').value = lineW;
+  document.getElementById('lineBSlider').value = lineB;
+
+  const hint = document.getElementById('lineHint');
+  if (loss <= 0.255) {
+    hint.textContent = "That's about as low as any line goes (~0.25). A bend gets us lower — next stage.";
+    hint.classList.add('win');
+  } else {
+    hint.textContent = "A line can fit slope, but not bumps.";
+    hint.classList.remove('win');
+  }
+  drawLineArch();
+  drawLinePlot();
+}
+
+// Gradient of MSE w.r.t. line params:  ŷ = wx+b,  L = (1/N)Σ(ŷ-y)²
+function trainLineStep() {
+  const lr = 0.05;
+  let dw = 0, db = 0;
+  const N = FIT_DATA.length;
+  for (const p of FIT_DATA) {
+    const err = (lineW * p.x + lineB) - p.y;
+    dw += (2 / N) * err * p.x;
+    db += (2 / N) * err;
+  }
+  lineW = Math.max(-1, Math.min(1, lineW - lr * dw));
+  lineB = Math.max(-1, Math.min(2, lineB - lr * db));
+  renderLine();
+}
+
+function drawLinePlot() {
+  const svg = document.getElementById('linePlot');
+  const W = 460, H = 380, pad = 50;
+  const xR = [0, 5], yR = [-1, 2];
+  const sx = v => pad + (v - xR[0]) / (xR[1] - xR[0]) * (W - 2 * pad);
+  const sy = v => H - pad - (v - yR[0]) / (yR[1] - yR[0]) * (H - 2 * pad);
+
+  let s = svgGrid(W, H, pad, xR, yR, sx, sy);
+  s += `<text x="${W - pad + 8}" y="${sy(0) + 4}" font-family="Fira Code" font-size="11" fill="#686868">x</text>`;
+  s += `<text x="${sx(0) + 6}" y="${pad - 8}" font-family="Fira Code" font-size="11" fill="#686868">y</text>`;
+
+  // line
+  s += svgPath([[0, lineW * 0 + lineB], [5, lineW * 5 + lineB]], sx, sy, '#503AA8', 2.5);
+
+  // error bars
+  FIT_DATA.forEach(p => {
+    const yhat = lineW * p.x + lineB;
+    s += `<line x1="${sx(p.x)}" y1="${sy(p.y)}" x2="${sx(p.x)}" y2="${sy(yhat)}" stroke="#F6CFF4" stroke-width="2"/>`;
+  });
+  // data points
+  FIT_DATA.forEach(p => {
+    s += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="6" fill="#FFEE58" stroke="#111" stroke-width="1.5"/>`;
+    s += `<text x="${sx(p.x) + 10}" y="${sy(p.y) + 4}" font-family="Fira Code" font-size="11" fill="#686868">(${p.x}, ${p.y})</text>`;
+  });
+  // predicted dots on line
+  FIT_DATA.forEach(p => {
+    const yhat = lineW * p.x + lineB;
+    s += `<circle cx="${sx(p.x)}" cy="${sy(yhat)}" r="3" fill="#503AA8"/>`;
+  });
+
+  svg.innerHTML = s;
+}
+
+document.getElementById('lineWSlider').addEventListener('input', e => { lineW = parseFloat(e.target.value); renderLine(); });
+document.getElementById('lineBSlider').addEventListener('input', e => { lineB = parseFloat(e.target.value); renderLine(); });
+
+// =====================================================================
+// STAGE 2 — BEND
+// =====================================================================
+let bendW = 1.00, bendB = -2.50;
+
+function bendLoss() {
+  return mse(FIT_DATA.map(p => sigmoid(bendW * p.x + bendB)), FIT_DATA.map(p => p.y));
+}
+
+function renderBend() {
+  const loss = bendLoss();
+  const fmt = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  document.getElementById('bendW').textContent = bendW.toFixed(2);
+  document.getElementById('bendB').textContent = fmt(bendB);
+  document.getElementById('bendWVal').textContent = bendW.toFixed(2);
+  document.getElementById('bendBVal').textContent = fmt(bendB);
+  document.getElementById('bendLoss').textContent = loss.toFixed(3);
+  document.getElementById('bendWSlider').value = bendW;
+  document.getElementById('bendBSlider').value = bendB;
+
+  const hint = document.getElementById('bendHint');
+  if (loss <= 0.255) {
+    hint.innerHTML = "You're at the floor (~0.25) — same as the line. <strong>The bend didn't help.</strong> σ is still monotonic. We need <em>more</em> bends — next stage.";
+    hint.classList.add('win');
+  } else {
+    hint.textContent = "A single S curve is still one-directional. Try to fit the bump — you can't.";
+    hint.classList.remove('win');
+  }
+  drawBendArch();
+  drawBendPlot();
+}
+
+// Chain rule:  L = (1/N)Σ(σ(z)-y)²,  z = wx+b
+//   dL/dw = (2/N) Σ (σ(z)-y) · σ'(z) · x       σ'(z) = σ(z)·(1-σ(z))
+//   dL/db = (2/N) Σ (σ(z)-y) · σ'(z)
+function trainBendStep() {
+  const lr = 1.5;
+  let dw = 0, db = 0;
+  const N = FIT_DATA.length;
+  for (const p of FIT_DATA) {
+    const z = bendW * p.x + bendB;
+    const yhat = sigmoid(z);
+    const err = yhat - p.y;
+    const sigPrime = yhat * (1 - yhat);
+    dw += (2 / N) * err * sigPrime * p.x;
+    db += (2 / N) * err * sigPrime;
+  }
+  bendW = Math.max(-5, Math.min(5, bendW - lr * dw));
+  bendB = Math.max(-10, Math.min(10, bendB - lr * db));
+  renderBend();
+}
+
+function drawBendPlot() {
+  const svg = document.getElementById('bendPlot');
+  const W = 460, H = 380, pad = 36;
+  const splitY = H / 2;
+  const xR = [0, 5];
+
+  // SVG clipPath so the unclamped line in the top half cleanly exits the viewport
+  let s = `<defs>
+    <clipPath id="bendTopClip">
+      <rect x="${pad - 2}" y="${pad - 6}" width="${W - 2 * pad + 4}" height="${splitY - pad - 4}"/>
+    </clipPath>
+  </defs>`;
+  s += `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+
+  // ---- TOP HALF: raw line z = wx+b (no clamping; clipped by SVG viewport)
+  {
+    const yR = [-8, 8];
+    const sx = v => pad + (v - xR[0]) / (xR[1] - xR[0]) * (W - 2 * pad);
+    const sy = v => splitY - 10 - (v - yR[0]) / (yR[1] - yR[0]) * (splitY - pad - 10);
+    for (let g = 0; g <= 5; g++) s += `<line x1="${sx(g)}" y1="${pad}" x2="${sx(g)}" y2="${splitY - 10}" stroke="rgba(17,17,17,0.05)"/>`;
+    s += `<line x1="${pad}" y1="${sy(0)}" x2="${W - pad}" y2="${sy(0)}" stroke="rgba(17,17,17,0.3)"/>`;
+    s += `<line x1="${sx(0)}" y1="${pad}" x2="${sx(0)}" y2="${splitY - 10}" stroke="rgba(17,17,17,0.3)"/>`;
+    s += `<text x="${pad - 4}" y="${pad - 6}" font-family="Fira Code" font-size="10" fill="#686868">z = wx+b · extends to ±∞</text>`;
+    // line and dots inside clipPath — line escapes naturally when steep
+    s += `<g clip-path="url(#bendTopClip)">`;
+    const lineSamples = sampleFn(x => bendW * x + bendB, xR, 60);
+    s += svgPath(lineSamples, sx, sy, '#503AA8', 2);
+    FIT_DATA.forEach(p => {
+      const z = bendW * p.x + bendB;
+      s += `<circle cx="${sx(p.x)}" cy="${sy(z)}" r="3" fill="#503AA8"/>`;
+    });
+    s += `</g>`;
+  }
+
+  // ---- DIVIDER
+  s += `<line x1="${pad}" y1="${splitY}" x2="${W - pad}" y2="${splitY}" stroke="rgba(17,17,17,0.15)" stroke-dasharray="3,3"/>`;
+  s += `<text x="${W / 2 - 14}" y="${splitY + 4}" font-family="Fira Code" font-size="10" fill="#686868">↓ σ</text>`;
+
+  // ---- BOTTOM HALF: ŷ = σ(z) with explicit saturation guides
+  {
+    const yR = [-0.2, 1.2];
+    const sx = v => pad + (v - xR[0]) / (xR[1] - xR[0]) * (W - 2 * pad);
+    const sy = v => H - pad - (v - yR[0]) / (yR[1] - yR[0]) * (H - splitY - pad - 10);
+
+    // saturation BANDS — soft purple to mark the "impossible" zones above 1 and below 0
+    s += `<rect x="${pad}" y="${sy(1.2)}" width="${W - 2 * pad}" height="${sy(1) - sy(1.2)}" fill="rgba(80,58,168,0.05)"/>`;
+    s += `<rect x="${pad}" y="${sy(0)}" width="${W - 2 * pad}" height="${sy(-0.2) - sy(0)}" fill="rgba(80,58,168,0.05)"/>`;
+
+    // x grid
+    for (let g = 0; g <= 5; g++) s += `<line x1="${sx(g)}" y1="${splitY + 16}" x2="${sx(g)}" y2="${H - pad}" stroke="rgba(17,17,17,0.05)"/>`;
+    s += `<line x1="${sx(0)}" y1="${splitY + 16}" x2="${sx(0)}" y2="${H - pad}" stroke="rgba(17,17,17,0.3)"/>`;
+    s += `<text x="${pad - 4}" y="${splitY + 26}" font-family="Fira Code" font-size="10" fill="#686868">ŷ = σ(z)</text>`;
+
+    // CEILING and FLOOR — dashed, labelled
+    s += `<line x1="${pad}" y1="${sy(1)}" x2="${W - pad}" y2="${sy(1)}" stroke="rgba(80,58,168,0.5)" stroke-dasharray="3,3" stroke-width="1"/>`;
+    s += `<text x="${W - pad - 4}" y="${sy(1) - 4}" font-family="Fira Code" font-size="10" fill="#503AA8" text-anchor="end">σ → 1 (ceiling)</text>`;
+    s += `<line x1="${pad}" y1="${sy(0)}" x2="${W - pad}" y2="${sy(0)}" stroke="rgba(80,58,168,0.5)" stroke-dasharray="3,3" stroke-width="1"/>`;
+    s += `<text x="${W - pad - 4}" y="${sy(0) + 14}" font-family="Fira Code" font-size="10" fill="#503AA8" text-anchor="end">σ → 0 (floor)</text>`;
+
+    // sigmoid curve
+    const sigSamples = sampleFn(x => sigmoid(bendW * x + bendB), xR, 80);
+    s += svgPath(sigSamples, sx, sy, '#503AA8', 2.5);
+
+    // error bars + data + predictions
+    FIT_DATA.forEach(p => {
+      const yhat = sigmoid(bendW * p.x + bendB);
+      s += `<line x1="${sx(p.x)}" y1="${sy(p.y)}" x2="${sx(p.x)}" y2="${sy(yhat)}" stroke="#F6CFF4" stroke-width="2"/>`;
+    });
+    FIT_DATA.forEach(p => {
+      s += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="5" fill="#FFEE58" stroke="#111" stroke-width="1.5"/>`;
+    });
+    FIT_DATA.forEach(p => {
+      const yhat = sigmoid(bendW * p.x + bendB);
+      s += `<circle cx="${sx(p.x)}" cy="${sy(yhat)}" r="3" fill="#503AA8"/>`;
+    });
+  }
+
+  svg.innerHTML = s;
+}
+
+document.getElementById('bendWSlider').addEventListener('input', e => { bendW = parseFloat(e.target.value); renderBend(); });
+document.getElementById('bendBSlider').addEventListener('input', e => { bendB = parseFloat(e.target.value); renderBend(); });
+
+// =====================================================================
+// STAGE 3 — STACK
+// =====================================================================
+let stackW1 = 5.0, stackB1 = -7.5, stackW2 = 5.0, stackB2 = -17.5;
+let stackAct = 'sigmoid';  // 'sigmoid' or 'relu'
+
+const actFn = z => stackAct === 'sigmoid' ? sigmoid(z) : Math.max(0, z);
+function actDeriv(z) {
+  if (stackAct === 'sigmoid') {
+    const s = sigmoid(z);
+    return s * (1 - s);
+  }
+  return z > 0 ? 1 : 0;
+}
+const actLabel = () => stackAct === 'sigmoid' ? 'σ' : 'ReLU';
+
+function stackPredict(x) {
+  return actFn(stackW1 * x + stackB1) - actFn(stackW2 * x + stackB2);
+}
+function stackLossFn() {
+  return mse(FIT_DATA.map(p => stackPredict(p.x)), FIT_DATA.map(p => p.y));
+}
+
+function renderStack() {
+  const loss = stackLossFn();
+  const fmt = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  document.getElementById('stackW1Val').textContent = stackW1.toFixed(2);
+  document.getElementById('stackB1Val').textContent = fmt(stackB1);
+  document.getElementById('stackW2Val').textContent = stackW2.toFixed(2);
+  document.getElementById('stackB2Val').textContent = fmt(stackB2);
+  document.getElementById('stackLoss').textContent = loss.toFixed(4);
+  document.getElementById('stackW1Slider').value = stackW1;
+  document.getElementById('stackB1Slider').value = stackB1;
+  document.getElementById('stackW2Slider').value = stackW2;
+  document.getElementById('stackB2Slider').value = stackB2;
+
+  // Formula display reflects current activation (σ or ReLU)
+  const label = actLabel();
+  document.getElementById('stackActL1').textContent = label;
+  document.getElementById('stackActL2').textContent = label;
+
+  const hint = document.getElementById('stackHint');
+  if (loss < 0.01) {
+    hint.innerHTML = "<strong>Below 0.01.</strong> Two bends, subtracted, fit the bump. This <em>is</em> an MLP — and stacked deep enough, it can fit anything.";
+    hint.classList.add('win');
+  } else if (loss < 0.05) {
+    hint.textContent = "Getting close. Push the second bend further right so it catches up after the first.";
+    hint.classList.remove('win');
+  } else {
+    hint.textContent = stackAct === 'sigmoid'
+      ? "A single S can't make a bump. Two of them, subtracted, can."
+      : "Two ReLUs subtracted give a piecewise-linear bump. Train to find good corners.";
+    hint.classList.remove('win');
+  }
+  drawStackArch();
+  drawStackPlot();
+}
+
+// Chain rule on  ŷ = σ(z₁) − σ(z₂),  z_k = w_k·x + b_k
+//   dL/dw₁ = (2/N) Σ (ŷ-y) · σ'(z₁) · x        dL/db₁ = (2/N) Σ (ŷ-y) · σ'(z₁)
+//   dL/dw₂ = -(2/N) Σ (ŷ-y) · σ'(z₂) · x       dL/db₂ = -(2/N) Σ (ŷ-y) · σ'(z₂)
+function trainStackStep() {
+  // ReLU's gradient in the active region is 1 (not capped at 0.25 like σ).
+  // The same lr that converges nicely for σ overshoots for ReLU — clipping
+  // sends weights to slider extremes and training ping-pongs forever.
+  const lr = stackAct === 'relu' ? 0.15 : 2.5;
+  let dw1 = 0, db1 = 0, dw2 = 0, db2 = 0;
+  const N = FIT_DATA.length;
+  for (const p of FIT_DATA) {
+    const z1 = stackW1 * p.x + stackB1;
+    const z2 = stackW2 * p.x + stackB2;
+    const a1 = actFn(z1);
+    const a2 = actFn(z2);
+    const err = (a1 - a2) - p.y;
+    const factor = (2 / N) * err;
+    const d1 = actDeriv(z1);
+    const d2 = actDeriv(z2);
+    dw1 +=  factor * d1 * p.x;
+    db1 +=  factor * d1;
+    dw2 += -factor * d2 * p.x;
+    db2 += -factor * d2;
+  }
+  stackW1 = Math.max(-10, Math.min(10, stackW1 - lr * dw1));
+  stackB1 = Math.max(-25, Math.min(25, stackB1 - lr * db1));
+  stackW2 = Math.max(-10, Math.min(10, stackW2 - lr * dw2));
+  stackB2 = Math.max(-25, Math.min(25, stackB2 - lr * db2));
+  renderStack();
+}
+
+function drawStackPlot() {
+  const svg = document.getElementById('stackPlot');
+  const W = 460, H = 380, pad = 50;
+  const xR = [0, 5], yR = [-0.3, 1.3];
+  const sx = v => pad + (v - xR[0]) / (xR[1] - xR[0]) * (W - 2 * pad);
+  const sy = v => H - pad - (v - yR[0]) / (yR[1] - yR[0]) * (H - 2 * pad);
+
+  let s = svgGrid(W, H, pad, xR, yR, sx, sy);
+  // y=1 reference line
+  s += `<line x1="${pad}" y1="${sy(1)}" x2="${W - pad}" y2="${sy(1)}" stroke="rgba(17,17,17,0.08)" stroke-dasharray="2,3"/>`;
+  s += `<text x="${W - pad + 8}" y="${sy(0) + 4}" font-family="Fira Code" font-size="11" fill="#686868">x</text>`;
+  s += `<text x="${sx(0) + 6}" y="${pad - 8}" font-family="Fira Code" font-size="11" fill="#686868">y</text>`;
+
+  // ReLU is piecewise-linear — sample more densely so corners look sharp.
+  const N = stackAct === 'relu' ? 240 : 120;
+  const n1 = sampleFn(x => actFn(stackW1 * x + stackB1), xR, N);
+  s += svgPath(n1, sx, sy, 'rgba(80,58,168,0.5)', 1.5);
+  const n2 = sampleFn(x => actFn(stackW2 * x + stackB2), xR, N);
+  s += svgPath(n2, sx, sy, 'rgba(46,125,50,0.5)', 1.5);
+  const sum = sampleFn(x => actFn(stackW1 * x + stackB1) - actFn(stackW2 * x + stackB2), xR, N);
+  s += svgPath(sum, sx, sy, '#503AA8', 3);
+
+  // legend
+  s += `<g font-family="Fira Code" font-size="10">
+    <line x1="${W - 130}" y1="${pad + 10}" x2="${W - 110}" y2="${pad + 10}" stroke="rgba(80,58,168,0.5)" stroke-width="1.5"/>
+    <text x="${W - 104}" y="${pad + 14}" fill="#686868">neuron 1</text>
+    <line x1="${W - 130}" y1="${pad + 26}" x2="${W - 110}" y2="${pad + 26}" stroke="rgba(46,125,50,0.5)" stroke-width="1.5"/>
+    <text x="${W - 104}" y="${pad + 30}" fill="#686868">neuron 2</text>
+    <line x1="${W - 130}" y1="${pad + 42}" x2="${W - 110}" y2="${pad + 42}" stroke="#503AA8" stroke-width="3"/>
+    <text x="${W - 104}" y="${pad + 46}" fill="#111" font-weight="500">ŷ = n1 − n2</text>
+  </g>`;
+
+  // error bars
+  FIT_DATA.forEach(p => {
+    const yhat = stackPredict(p.x);
+    s += `<line x1="${sx(p.x)}" y1="${sy(p.y)}" x2="${sx(p.x)}" y2="${sy(yhat)}" stroke="#F6CFF4" stroke-width="2"/>`;
+  });
+  // data points (yellow on top)
+  FIT_DATA.forEach(p => {
+    s += `<circle cx="${sx(p.x)}" cy="${sy(p.y)}" r="6" fill="#FFEE58" stroke="#111" stroke-width="1.5"/>`;
+  });
+  // predicted dots
+  FIT_DATA.forEach(p => {
+    const yhat = stackPredict(p.x);
+    s += `<circle cx="${sx(p.x)}" cy="${sy(yhat)}" r="3" fill="#503AA8"/>`;
+  });
+
+  svg.innerHTML = s;
+}
+
+document.getElementById('stackW1Slider').addEventListener('input', e => { stackW1 = parseFloat(e.target.value); renderStack(); });
+document.getElementById('stackB1Slider').addEventListener('input', e => { stackB1 = parseFloat(e.target.value); renderStack(); });
+document.getElementById('stackW2Slider').addEventListener('input', e => { stackW2 = parseFloat(e.target.value); renderStack(); });
+document.getElementById('stackB2Slider').addEventListener('input', e => { stackB2 = parseFloat(e.target.value); renderStack(); });
+
+// =====================================================================
+// STAGE 4 — EMBED · the toy model's weights (fit offline, see fit_transformer.py)
+// =====================================================================
+// Vocabulary is a trimmed version of Grant Sanderson's example sentence —
+// "a fluffy blue creature roamed the [verdant] forest". We dropped "verdant"
+// (and "fox" + "ran") to keep the vocab to 9 tokens (cognitive load); the
+// rollout still reproduces "a fluffy blue creature roamed the forest .".
+const VOCAB = ['a', 'the', 'fluffy', 'blue', 'creature', 'forest', 'roamed', 'walked', '.'];
+const DIM = 3;
+const DEFAULTS = [
+  [-0.06, -0.03, 0.00],
+  [0.08, -0.08, -0.06],
+  [-0.09, -0.04, 0.07],
+  [-0.05, 0.06, 0.12],
+  [0.06, 0.13, 0.09],
+  [-0.04, -0.15, -0.09],
+  [0.09, 0.11, -0.11],
+  [0.09, 0.02, 0.01],
+  [-0.15, -0.10, -0.02],
+];
+let E = DEFAULTS.map(r => r.slice());
+
+// Trained MLP weights — W1: 6×3, B1: 6, W2: 3×6, B2: 3.
+const W1 = [
+  [-19.46, -6.07, 2.68],
+  [1.31, 20.52, 9.07],
+  [13.74, -4.40, -20.26],
+  [-0.81, 0.01, 1.06],
+  [0.42, 0.56, 0.79],
+  [-12.28, -7.12, -1.86],
+];
+const B1 = [5.96, 14.91, 14.54, -0.23, -1.26, 5.69];
+const W2 = [
+  [-7.31, 24.46, -13.83, 0.47, -0.31, -9.61],
+  [1.31, 12.05, -19.97, 0.39, 0.10, -2.40],
+  [18.99, -4.59, -4.98, 0.06, -0.14, 14.64],
+];
+const B2 = [6.11, 9.10, 1.42];
+
+let activeTok = -1;
+const f = (x, d = 2) => Number(x).toFixed(d);
+const DIM_LABELS = ['d₀', 'd₁', 'd₂'];
+
+// One magnitude cell — V1 visual grammar: fill colour = sign, opacity = |v|/scale.
+function vecCellsHtml(vals) {
+  return vals.map(v => {
+    const mag = Math.min(1, Math.abs(v) / 0.5);
+    const rgb = v >= 0 ? '80,58,168' : '230,93,117';
+    return `<span class="cell" style="background:rgba(${rgb},${(0.15 + 0.55 * mag).toFixed(2)})">${f(v)}</span>`;
+  }).join('');
+}
+
+function buildEmbedGrid(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = VOCAB.map((tok, i) => `
+    <div class="token-card" data-idx="${i}" onclick="setActiveTok(${i})">
+      <span class="word">${tok}</span>
+      <span class="vec" data-vec="${i}">${vecCellsHtml(E[i])}</span>
+      <span class="sliders">${[0, 1, 2].map(d => `<input type="range" data-tok="${i}" data-dim="${d}" min="-0.6" max="0.6" step="0.01" value="${E[i][d]}" oninput="setTokVal(${i},${d},this.value)" aria-label="${tok} ${DIM_LABELS[d]}">`).join('')}</span>
+    </div>`).join('');
+}
+
+// Stage 4 holds the master grid; Stage 5 mirrors it so embeddings are editable
+// from either panel. setTokVal syncs every copy via data-attrs.
+function buildTokens() {
+  buildEmbedGrid('tokenGrid');
+  buildEmbedGrid('tokenGridAttend');
+}
+
+function setTokVal(i, dim, v) {
+  E[i][dim] = parseFloat(v);
+  document.querySelectorAll(`[data-vec="${i}"]`).forEach(el => {
+    el.innerHTML = vecCellsHtml(E[i]);
+  });
+  document.querySelectorAll(`input[data-tok="${i}"][data-dim="${dim}"]`).forEach(el => {
+    if (el.value !== String(v)) el.value = v;
+  });
+  drawEmbedPlot();
+  updateLLM();
+}
+
+function setActiveTok(i) {
+  activeTok = (activeTok === i) ? -1 : i;
+  document.querySelectorAll('.token-card').forEach((el, j) => el.classList.toggle('active', j === activeTok));
+  drawEmbedPlot();
+}
+
+// 2D projection (d₀, d₁) of the 3D embeddings. Prompt tokens are highlighted.
+function drawEmbedPlot() {
+  const svg = document.getElementById('embedPlot');
+  if (!svg) return;
+  const W = 460, H = 380, pad = 50;
+  const xR = [-0.6, 0.6], yR = [-0.6, 0.6];
+  const sx = v => pad + (v - xR[0]) / (xR[1] - xR[0]) * (W - 2 * pad);
+  const sy = v => H - pad - (v - yR[0]) / (yR[1] - yR[0]) * (H - 2 * pad);
+
+  let s = svgGrid(W, H, pad, xR, yR, sx, sy);
+  s += `<text x="${W - pad + 10}" y="${sy(0) + 4}" font-family="Fira Code" font-size="11" fill="#686868">d₀</text>`;
+  s += `<text x="${sx(0) + 6}" y="${pad - 8}" font-family="Fira Code" font-size="11" fill="#686868">d₁</text>`;
+  E.forEach((v, i) => {
+    const cx = sx(v[0]), cy = sy(v[1]);
+    const inPrompt = PROMPT_IDS.includes(i);
+    const active = i === activeTok;
+    const hi = active || inPrompt;
+    const r = active ? 9 : (inPrompt ? 7 : 5);
+    s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${hi ? '#FFEE58' : '#503AA8'}" stroke="#111" stroke-width="${hi ? 1.5 : 0}"/>`;
+    s += `<text x="${cx + 10}" y="${cy + 4}" font-family="Fira Code" font-size="12" font-weight="${hi ? 600 : 400}" fill="#111">${VOCAB[i]}</text>`;
+  });
+  svg.innerHTML = s;
+}
+
+// =====================================================================
+// Training infrastructure
+// =====================================================================
+const TRAIN_INTERVAL_MS = 20;
+const TRAIN_MAX_STEPS = 800;
+const TRAIN_PLATEAU_TOL = 1e-6;
+const TRAIN_PLATEAU_WINDOW = 25;
+
+function makeTrainer({ btnId, metaId, stepFn, lossFn, defaultMeta, convergeBelow = Infinity }) {
+  const btn = document.getElementById(btnId);
+  const meta = document.getElementById(metaId);
+  const icon = btn.querySelector('.icon');
+  const text = btn.querySelector('.text');
+  let timer = null;
+  let step = 0;
+  let recent = [];
+
+  function stop(message) {
+    if (timer) { clearInterval(timer); timer = null; }
+    btn.classList.remove('running');
+    icon.textContent = '▶';
+    text.textContent = 'Train';
+    if (message) meta.textContent = message;
+  }
+
+  function verdict(loss) {
+    return loss <= convergeBelow ? 'converged' : 'stuck — try 🎲 again';
+  }
+
+  function start() {
+    step = 0;
+    recent = [];
+    btn.classList.add('running');
+    icon.textContent = '❚❚';
+    text.textContent = 'Stop';
+    timer = setInterval(() => {
+      stepFn();
+      step++;
+      const loss = lossFn();
+      recent.push(loss);
+      if (recent.length > TRAIN_PLATEAU_WINDOW) recent.shift();
+      meta.textContent = `step ${step} · loss ${loss.toFixed(4)}`;
+      if (step >= TRAIN_MAX_STEPS) {
+        stop(`${verdict(loss)} · ${step} steps · loss ${loss.toFixed(4)}`);
+      } else if (recent.length === TRAIN_PLATEAU_WINDOW) {
+        const range = Math.max(...recent) - Math.min(...recent);
+        if (range < TRAIN_PLATEAU_TOL) {
+          stop(`${verdict(loss)} · ${step} steps · loss ${loss.toFixed(4)}`);
+        }
+      }
+    }, TRAIN_INTERVAL_MS);
+  }
+
+  btn.addEventListener('click', () => { timer ? stop(defaultMeta) : start(); });
+  return { stop: () => stop(defaultMeta), isRunning: () => timer !== null };
+}
+
+// convergeBelow: a line/neuron bottoms at MSE ≈ 0.25 on our data — that IS converged.
+// A 2-neuron MLP should hit ≤ 0.02; anything higher is a local-min trap, suggest retry.
+const lineTrainer = makeTrainer({
+  btnId: 'lineTrainBtn', metaId: 'lineTrainMeta',
+  stepFn: trainLineStep, lossFn: lineLoss,
+  defaultMeta: 'gradient descent · lr=0.05',
+  convergeBelow: 0.26,
+});
+const bendTrainer = makeTrainer({
+  btnId: 'bendTrainBtn', metaId: 'bendTrainMeta',
+  stepFn: trainBendStep, lossFn: bendLoss,
+  defaultMeta: 'gradient descent · lr=1.5',
+  convergeBelow: 0.26,
+});
+const stackTrainer = makeTrainer({
+  btnId: 'stackTrainBtn', metaId: 'stackTrainMeta',
+  stepFn: trainStackStep, lossFn: stackLossFn,
+  defaultMeta: 'gradient descent · lr=2.5',
+  convergeBelow: 0.02,
+});
+
+// ---- Random init ----
+const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+
+function randomizeLine() { lineTrainer.stop(); lineW = rand(-0.5, 0.5); lineB = rand(-0.5, 1.5); renderLine(); document.getElementById('lineTrainMeta').textContent = 'random init · loss ' + lineLoss().toFixed(3) + ' · press ▶ Train'; }
+function randomizeBend() { bendTrainer.stop(); bendW = rand(-2, 2); bendB = rand(-5, 5); renderBend(); document.getElementById('bendTrainMeta').textContent = 'random init · loss ' + bendLoss().toFixed(3) + ' · press ▶ Train'; }
+// Small-magnitude init (Xavier/He spirit): keeps both neurons in the active
+// region so neither starts dead-saturated/dead-ReLU. Sometimes still hits
+// local minima — that's the honest "training is non-convex" experience.
+function randomizeStack() {
+  stackTrainer.stop();
+  if (stackAct === 'relu') {
+    // Threshold-based init: place each neuron's z=0 crossing INSIDE the data
+    // range [1, 4]. That guarantees each neuron sees some active (z>0) and
+    // some dead (z<0) data points — so the gradient is non-zero somewhere,
+    // training can move. Dead ReLU is forever (∂ReLU/∂z = 0 when z≤0), so
+    // an init that lands a neuron fully dead is unrecoverable. We pick
+    // different threshold ranges for the two neurons so they're naturally
+    // asymmetric — needed to shape a bump.
+    const t1 = rand(1.3, 2.8);          // where neuron 1 switches on
+    const t2 = rand(2.0, 3.8);          // where neuron 2 switches on (later)
+    stackW1 = rand(0.8, 2.5);
+    stackB1 = -stackW1 * t1;             // so 0 = w1·t1 + b1
+    stackW2 = rand(0.8, 2.5);
+    stackB2 = -stackW2 * t2;
+  } else {
+    stackW1 = rand(-2, 2); stackB1 = rand(-5, 5);
+    stackW2 = rand(-2, 2); stackB2 = rand(-5, 5);
+  }
+  renderStack();
+  document.getElementById('stackTrainMeta').textContent =
+    'random init · loss ' + stackLossFn().toFixed(4) + ' · press ▶ Train';
+}
+
+document.getElementById('lineRandomBtn').addEventListener('click', randomizeLine);
+document.getElementById('bendRandomBtn').addEventListener('click', randomizeBend);
+document.getElementById('stackRandomBtn').addEventListener('click', randomizeStack);
+
+// Activation toggle for Stage 3 (σ ↔ ReLU)
+document.getElementById('stackActSel').addEventListener('change', e => {
+  stackTrainer.stop();
+  stackAct = e.target.value;
+  renderStack();
+  const loss = stackLossFn();
+  const lr = stackAct === 'relu' ? 0.15 : 2.5;
+  document.getElementById('stackTrainMeta').textContent =
+    `activation → ${actLabel()} (lr=${lr}) · loss now ${loss.toFixed(4)} · 🎲 + ▶ Train to refit`;
+});
+
+// ---- Collapsible toggles (training code, explanatory notes). CSS handles the chevron rotation. ----
+// Each toggle stores its closed label in the .label span and (optionally) an
+// open-state label in data-open-label. Default open label = "Hide …" of closed.
+document.querySelectorAll('.code-toggle').forEach(btn => {
+  const labelEl = btn.querySelector('.label');
+  const closedLabel = labelEl ? labelEl.textContent : '';
+  const openLabel = btn.dataset.openLabel
+    || ('Hide ' + closedLabel.replace(/^Show\s+/i, ''));
+  btn.addEventListener('click', () => {
+    const panel = document.getElementById(btn.dataset.target);
+    const open = panel.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (labelEl) labelEl.textContent = open ? openLabel : closedLabel;
+  });
+});
+
+// If the user manually drags a slider, abort that stage's training.
+document.getElementById('lineWSlider').addEventListener('mousedown', () => lineTrainer.stop());
+document.getElementById('lineBSlider').addEventListener('mousedown', () => lineTrainer.stop());
+document.getElementById('lineWSlider').addEventListener('touchstart', () => lineTrainer.stop(), { passive: true });
+document.getElementById('lineBSlider').addEventListener('touchstart', () => lineTrainer.stop(), { passive: true });
+document.getElementById('bendWSlider').addEventListener('mousedown', () => bendTrainer.stop());
+document.getElementById('bendBSlider').addEventListener('mousedown', () => bendTrainer.stop());
+document.getElementById('bendWSlider').addEventListener('touchstart', () => bendTrainer.stop(), { passive: true });
+document.getElementById('bendBSlider').addEventListener('touchstart', () => bendTrainer.stop(), { passive: true });
+['stackW1Slider', 'stackB1Slider', 'stackW2Slider', 'stackB2Slider'].forEach(id => {
+  document.getElementById(id).addEventListener('mousedown', () => stackTrainer.stop());
+  document.getElementById(id).addEventListener('touchstart', () => stackTrainer.stop(), { passive: true });
+});
+
+// =====================================================================
+// Architecture diagrams — small wiring sketches above each function plot
+// =====================================================================
+const ARCH_ARROW_DEFS = `<defs>
+  <marker id="archArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#686868"/>
+  </marker>
+</defs>`;
+
+function archBox(x, y, w, h, label) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#FBFAF3" stroke="rgba(17,17,17,0.3)" rx="4"/>
+    <text x="${x + w/2}" y="${y + h/2 + 4}" text-anchor="middle" font-family="Fira Code" font-size="13" fill="#111">${label}</text>`;
+}
+function archCircle(cx, cy, r, label, color = '#111') {
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#FBFAF3" stroke="rgba(17,17,17,0.3)"/>
+    <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-family="Fira Code" font-size="14" fill="${color}">${label}</text>`;
+}
+function archEdge(x1, y1, x2, y2, label = '', labelDy = -8) {
+  let s = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#686868" stroke-width="1.5" marker-end="url(#archArrow)"/>`;
+  if (label) {
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    s += `<text x="${mx}" y="${my + labelDy}" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#503AA8">${label}</text>`;
+  }
+  return s;
+}
+
+// Stage 1: x → ⊕(w,b) → ŷ
+function drawLineArch() {
+  const svg = document.getElementById('lineArch');
+  if (!svg) return;
+  const W = 460, H = 90, midY = 50;
+  let s = ARCH_ARROW_DEFS + `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+  s += archBox(60, midY - 14, 36, 28, 'x');
+  s += archEdge(96, midY, 224, midY, `w = ${lineW.toFixed(2)}`);
+  s += archCircle(240, midY, 16, '+');
+  s += archEdge(240, 14, 240, midY - 16, '', 0);
+  s += `<text x="262" y="20" font-family="Fira Code" font-size="11" fill="#503AA8">b = ${lineB.toFixed(2)}</text>`;
+  s += archEdge(256, midY, 384, midY);
+  s += archBox(384, midY - 14, 36, 28, 'ŷ');
+  svg.innerHTML = s;
+}
+
+// Stage 2: x → ⊕(w,b) → σ → ŷ
+function drawBendArch() {
+  const svg = document.getElementById('bendArch');
+  if (!svg) return;
+  const W = 460, H = 90, midY = 50;
+  let s = ARCH_ARROW_DEFS + `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+  s += archBox(40, midY - 14, 36, 28, 'x');
+  s += archEdge(76, midY, 184, midY, `w = ${bendW.toFixed(2)}`);
+  s += archCircle(200, midY, 16, '+');
+  s += archEdge(200, 14, 200, midY - 16, '', 0);
+  s += `<text x="222" y="20" font-family="Fira Code" font-size="11" fill="#503AA8">b = ${bendB.toFixed(2)}</text>`;
+  s += archEdge(216, midY, 290, midY);
+  s += archCircle(306, midY, 16, 'σ', '#503AA8');
+  s += archEdge(322, midY, 404, midY);
+  s += archBox(404, midY - 14, 36, 28, 'ŷ');
+  svg.innerHTML = s;
+}
+
+// Activation circle: σ fits in r=14, ReLU needs more room.
+function archActCircle(cx, cy, color) {
+  if (stackAct === 'sigmoid') return archCircle(cx, cy, 14, 'σ', color);
+  return `<circle cx="${cx}" cy="${cy}" r="18" fill="#FBFAF3" stroke="rgba(17,17,17,0.3)"/>
+    <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-family="Fira Code" font-size="10" fill="${color}" font-weight="500">ReLU</text>`;
+}
+
+// Stage 3: x → 2 hidden σ neurons → ⊖ → ŷ
+function drawStackArch() {
+  const svg = document.getElementById('stackArch');
+  if (!svg) return;
+  const W = 460, H = 170;
+  const xCenter = 60, xY = 85;
+  const topY = 40, botY = 130;
+  let s = ARCH_ARROW_DEFS + `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+  // x input on the left, centered vertically
+  s += archBox(xCenter - 18, xY - 14, 36, 28, 'x');
+  // Top neuron path:  x → ⊕₁ → σ₁
+  s += archEdge(xCenter + 18, xY, 168, topY, `w₁ = ${stackW1.toFixed(2)}`, -6);
+  s += archCircle(184, topY, 14, '+');
+  s += `<text x="206" y="${topY - 18}" font-family="Fira Code" font-size="11" fill="#503AA8">b₁ = ${stackB1.toFixed(2)}</text>`;
+  s += archEdge(184, topY - 26, 184, topY - 14, '', 0);
+  s += archEdge(198, topY, 244, topY);
+  s += archActCircle(260, topY, '#503AA8');
+  // Bottom neuron path:  x → ⊕₂ → σ₂
+  s += archEdge(xCenter + 18, xY, 168, botY, `w₂ = ${stackW2.toFixed(2)}`, 14);
+  s += archCircle(184, botY, 14, '+');
+  s += `<text x="206" y="${botY + 24}" font-family="Fira Code" font-size="11" fill="#2e7d32">b₂ = ${stackB2.toFixed(2)}</text>`;
+  s += archEdge(184, botY + 26, 184, botY + 14, '', 0);
+  s += archEdge(198, botY, 244, botY);
+  s += archActCircle(260, botY, '#2e7d32');
+  // Both into ⊖
+  s += archEdge(274, topY, 340, 75);
+  s += archEdge(274, botY, 340, 95);
+  s += archCircle(356, 85, 16, '−');
+  // → ŷ
+  s += archEdge(372, 85, 404, 85);
+  s += archBox(404, 71, 36, 28, 'ŷ');
+  svg.innerHTML = s;
+}
+
+// =====================================================================
+// LLM pipeline (stages 5-7) — shared math, 3-dim
+// =====================================================================
+const PROMPT_IDS = [0, 2, 3, 4];            // a, fluffy, blue, creature
+
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function matVec(M, v) { return M.map(row => dot(row, v)); }
+function vecAdd(a, b) { return a.map((x, i) => x + b[i]); }
+function reluVec(v) { return v.map(x => Math.max(0, x)); }
+
+function softmax(arr) {
+  const m = Math.max(...arr);
+  const exps = arr.map(x => Math.exp(x - m));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return exps.map(e => e / sum);
+}
+
+// One forward pass: embed → attention (identity Q/K/V) → MLP → tied unembed.
+// useMLP=false bypasses the MLP block (h2 = h1), for the Stage-6 toggle.
+function pipeline(ids, useMLP = true) {
+  const X = ids.map(id => E[id].slice());       // embeddings
+  const qLast = X[X.length - 1];                // last token is the query
+  const scores = X.map(k => dot(qLast, k));     // identity keys
+  const alpha = softmax(scores);
+  const a = [0, 0, 0];                           // weighted sum of values
+  for (let i = 0; i < alpha.length; i++)
+    for (let d = 0; d < DIM; d++) a[d] += alpha[i] * X[i][d];
+  const h1 = vecAdd(qLast, a);                   // residual
+  const z = vecAdd(matVec(W1, h1), B1);          // MLP pre-activation (6)
+  const hid = reluVec(z);                        // ReLU
+  const delta = vecAdd(matVec(W2, hid), B2);     // back down to 3
+  const h2 = useMLP ? vecAdd(h1, delta) : h1.slice();
+  const logits = E.map(e => dot(h2, e));         // tied unembed
+  const probs = softmax(logits);
+  return { X, qLast, scores, alpha, a, h1, z, hid, delta, h2, logits, probs };
+}
+
+const vecN = v => '[' + v.map(x => x.toFixed(2)).join(', ') + ']';
+const argmax = arr => arr.indexOf(Math.max(...arr));
+
+// ----- Stage 5 — Attend -----
+function renderAttend() {
+  const r = pipeline(PROMPT_IDS);
+  document.getElementById('attQLast').textContent = vecN(r.qLast);
+  const winnerIdx = argmax(r.alpha);
+  const rows = PROMPT_IDS.map((id, i) => {
+    const cls = i === winnerIdx ? 'winner' : '';
+    return `<tr class="${cls}">
+      <td>${VOCAB[id]}</td>
+      <td class="num-cell">${r.scores[i].toFixed(3)}</td>
+      <td class="num-cell">${(r.alpha[i] * 100).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+  document.querySelector('#attendTable tbody').innerHTML = rows;
+  document.getElementById('attendSum').textContent = r.alpha.reduce((a, b) => a + b, 0).toFixed(3);
+  drawAttendDiagram(r);
+  drawAttendMixDiagram(r);
+}
+
+// N token cards (one per prompt word). The asker is the LAST card, highlighted
+// yellow as the Query. Curved arrows from the asker to each Key; arrow
+// thickness = softmax weight α.
+function drawAttendDiagram(r) {
+  const svg = document.getElementById('attendDiagram');
+  if (!svg) return;
+  const W = 600, H = 250;
+  const N = PROMPT_IDS.length;
+  const cardW = Math.min(130, Math.floor((W - 40) / N) - 8);
+  // Centre the whole row of cards inside W (equal left/right margin).
+  const gap = N > 1 ? Math.min(28, (W - N * cardW) / (N + 1)) : 0;
+  const rowW = N * cardW + (N - 1) * gap;
+  const x0 = (W - rowW) / 2;
+  const cardH = 84;
+  const cardY = 48;            // leaves room above for the QUERY label + arrow
+  const cardBottom = cardY + cardH;
+  const tokXs = Array.from({ length: N }, (_, i) => x0 + i * (cardW + gap));
+  const center = i => tokXs[i] + cardW / 2;
+  const askerIdx = N - 1;
+  const winnerIdx = argmax(r.alpha);
+
+  let s = `<defs>
+    <marker id="attendArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#503AA8"/>
+    </marker>
+  </defs>`;
+  s += `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+
+  // QUERY label sits just above the asker card and its arrow lands ON the card top.
+  const qCenter = center(askerIdx);
+  s += `<text x="${qCenter}" y="14" text-anchor="middle" font-family="Fira Code" font-size="10" fill="#503AA8" font-weight="600" letter-spacing="2">QUERY</text>`;
+  s += `<line x1="${qCenter}" y1="22" x2="${qCenter}" y2="${cardY - 2}" stroke="#503AA8" stroke-width="1.5" marker-end="url(#attendArrow)"/>`;
+
+  // Curved arrows from the asker's bottom to each token's bottom — they sag into
+  // the band BELOW the cards (kept clear of the weight bars further down).
+  const startX = qCenter;
+  const startY = cardBottom;
+  const sagBase = cardBottom + 30;   // deepest the curves dip
+  for (let i = 0; i < r.alpha.length; i++) {
+    const w = r.alpha[i];
+    const thickness = 1.5 + 12 * w;
+    const opacity = 0.18 + 0.82 * w;
+    const endX = center(i);
+    const labelMidX = (startX + endX) / 2;
+    if (i === askerIdx) {
+      // Self-loop: small arc out of the asker's bottom and back into it.
+      const r1 = 16 + 6 * w;
+      s += `<path d="M ${startX - 6} ${startY} q ${r1} ${r1 * 1.4} ${2 * r1} 0" stroke="#503AA8" stroke-width="${thickness}" opacity="${opacity}" fill="none" marker-end="url(#attendArrow)"/>`;
+      s += `<text x="${startX + r1}" y="${startY + r1 * 1.4 + 12}" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#503AA8" font-weight="500">${r.scores[i].toFixed(2)}</text>`;
+    } else {
+      // Curve sags below the cards; depth scales with horizontal distance so
+      // farther-away keys get deeper arcs (visually clearer).
+      const dropY = sagBase + 10 * (Math.abs(endX - startX) / W);
+      const d = `M ${startX} ${startY} C ${startX} ${dropY}, ${endX} ${dropY}, ${endX} ${startY}`;
+      s += `<path d="${d}" stroke="#503AA8" stroke-width="${thickness}" opacity="${opacity}" fill="none" marker-end="url(#attendArrow)"/>`;
+      s += `<text x="${labelMidX}" y="${dropY + 12}" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#503AA8" font-weight="500">${r.scores[i].toFixed(2)}</text>`;
+    }
+  }
+
+  // Token cards (drawn last so arrows go behind them)
+  PROMPT_IDS.forEach((id, i) => {
+    const x = tokXs[i];
+    const isQ = i === askerIdx;
+    const fontSize = cardW < 120 ? 14 : 16;
+    const vecFontSize = cardW < 120 ? 9 : 10;
+    s += `<rect x="${x}" y="${cardY}" width="${cardW}" height="${cardH}" fill="${isQ ? '#FFEE58' : '#FBFAF3'}" stroke="${isQ ? '#111' : 'rgba(17,17,17,0.2)'}" stroke-width="${isQ ? 1.5 : 1}" rx="8"/>`;
+    s += `<text x="${x + cardW / 2}" y="${cardY + 26}" text-anchor="middle" font-family="Manrope" font-size="${fontSize}" font-weight="500" fill="#111">${VOCAB[id]}</text>`;
+    s += `<text x="${x + cardW / 2}" y="${cardY + 49}" text-anchor="middle" font-family="Fira Code" font-size="${vecFontSize}" fill="#686868">${vecN(r.X[i])}</text>`;
+    // KEY · VALUE — both badges because identity W_K = W_V (the embedding plays both roles).
+    s += `<text x="${x + cardW / 2}" y="${cardY + 72}" text-anchor="middle" font-family="Fira Code" font-size="9" font-weight="600" letter-spacing="1.2"><tspan fill="#1976d2">KEY</tspan><tspan fill="#686868" dx="4">·</tspan><tspan fill="#2e7d32" dx="4">VALUE</tspan></text>`;
+  });
+
+  // Weight bars along the bottom, one under each card (clear of the sagging arrows)
+  const barY = H - 12;
+  PROMPT_IDS.forEach((id, i) => {
+    const x = tokXs[i];
+    const fillW = cardW * r.alpha[i];
+    const cls = i === winnerIdx;
+    s += `<rect x="${x}" y="${barY - 14}" width="${cardW}" height="14" fill="#FBFAF3" stroke="rgba(17,17,17,0.12)" rx="2"/>`;
+    s += `<rect x="${x}" y="${barY - 14}" width="${fillW}" height="14" fill="${cls ? '#FFEE58' : '#503AA8'}" opacity="${0.5 + 0.5 * r.alpha[i]}" rx="2"/>`;
+    s += `<text x="${x + cardW / 2}" y="${barY - 3}" text-anchor="middle" font-family="Fira Code" font-size="10" fill="#111" font-weight="${cls ? '600' : '500'}">${(r.alpha[i] * 100).toFixed(0)}%</text>`;
+  });
+
+  svg.innerHTML = s;
+}
+
+// Small horizontal vector of cells. Fill opacity scales with |value|/maxAbs;
+// sign maps to colour (purple positive, red negative). highlight=true paints
+// yellow — used for h₁, the residual-updated "sat with context".
+function hVec(x, y, vals, label, opts = {}) {
+  const cw = opts.cellW || 30, ch = 22;
+  const maxAbs = opts.maxAbs || 0.5;
+  const labelColor = opts.labelColor || '#686868';
+  let s = '';
+  if (label) {
+    const bold = opts.bold ? ' font-weight="600"' : '';
+    s += `<text x="${x + (vals.length * cw) / 2}" y="${y - 6}" text-anchor="middle" font-family="Fira Code" font-size="10" fill="${labelColor}"${bold}>${label}</text>`;
+  }
+  vals.forEach((v, i) => {
+    const mag = Math.min(1, Math.abs(v) / maxAbs);
+    const sign = v >= 0 ? '80,58,168' : '230,93,117';
+    const fill = opts.highlight
+      ? `rgba(255,238,88,${(0.45 + 0.5 * mag).toFixed(2)})`
+      : `rgba(${sign},${(0.18 + 0.55 * mag).toFixed(2)})`;
+    const xi = x + i * cw;
+    s += `<rect x="${xi}" y="${y}" width="${cw}" height="${ch}" fill="${fill}" stroke="${opts.highlight ? '#111' : 'rgba(17,17,17,0.22)'}" stroke-width="${opts.highlight ? 1.3 : 0.7}" rx="2"/>`;
+    s += `<text x="${xi + cw / 2}" y="${y + ch / 2 + 3.5}" text-anchor="middle" font-family="Fira Code" font-size="9" fill="#111">${v.toFixed(2)}</text>`;
+  });
+  return { svg: s, w: vals.length * cw };
+}
+
+// Two-row equation: (1) Σ αᵢ · Vᵢ = Δe; (2) x_asker + Δe = h₁ (= e' for 3B1B).
+// Handles any N (number of prompt tokens) — vector cell width scales down so
+// the row fits in W=600.
+function drawAttendMixDiagram(r) {
+  const svg = document.getElementById('attendMixDiagram');
+  if (!svg) return;
+  const W = 600, plusW = 22;
+  const N = PROMPT_IDS.length;
+  const labels = PROMPT_IDS.map(id => VOCAB[id]);
+  const askerLabel = labels[N - 1];
+  // Cell width on Row A scales down as N grows so the equation fits.
+  const cwA = N >= 4 ? 22 : 28;
+  const vWA = cwA * 3;            // each vector is 3 cells wide
+  const cwB = 30, vWB = cwB * 3;
+  let s = `<rect x="0" y="0" width="${W}" height="240" fill="white"/>`;
+
+  // ----- Row A: Σ αᵢ · Vᵢ = Δe -----
+  s += `<text x="${W / 2}" y="20" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#686868" letter-spacing="1.2">MIX THE VALUES · Δe &nbsp;=&nbsp; Σ αᵢ · Vᵢ</text>`;
+  const yA = 50;
+  const totalA = N * vWA + (N - 1) * plusW + plusW + vWB;
+  let xA = Math.round((W - totalA) / 2);
+  for (let i = 0; i < N; i++) {
+    const wt = r.alpha[i];
+    const scaled = r.X[i].map(v => v * wt);
+    const v = hVec(xA, yA, scaled, `${wt.toFixed(2)} · V_${labels[i]}`,
+                   { maxAbs: 0.12, labelColor: '#2e7d32', cellW: cwA });
+    s += v.svg;
+    xA += v.w;
+    if (i < N - 1) {
+      s += `<text x="${xA + plusW / 2}" y="${yA + 16}" text-anchor="middle" font-family="Fira Code" font-size="16" fill="#686868">+</text>`;
+      xA += plusW;
+    }
+  }
+  s += `<text x="${xA + plusW / 2}" y="${yA + 16}" text-anchor="middle" font-family="Fira Code" font-size="16" fill="#686868">=</text>`;
+  xA += plusW;
+  s += hVec(xA, yA, r.a, 'Δe · the nudge', { maxAbs: 0.2, labelColor: '#503AA8', bold: true, cellW: cwB }).svg;
+
+  // section divider
+  s += `<line x1="40" y1="118" x2="${W - 40}" y2="118" stroke="rgba(17,17,17,0.1)" stroke-dasharray="3,4"/>`;
+
+  // ----- Row B: h₁ = x_asker + Δe (the residual update / refined embedding e') -----
+  s += `<text x="${W / 2}" y="146" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#686868" letter-spacing="1.2">ADD THE NUDGE TO ${askerLabel} (RESIDUAL) &nbsp;·&nbsp; h₁ &nbsp;=&nbsp; x_${askerLabel} + Δe</text>`;
+  const yB = 180;
+  const totalB = vWB + plusW + vWB + plusW + vWB;
+  let xB = Math.round((W - totalB) / 2);
+  let v = hVec(xB, yB, r.X[N - 1], `x_${askerLabel} · before`, { maxAbs: 0.4, cellW: cwB });
+  s += v.svg; xB += v.w;
+  s += `<text x="${xB + plusW / 2}" y="${yB + 16}" text-anchor="middle" font-family="Fira Code" font-size="16" fill="#686868">+</text>`;
+  xB += plusW;
+  v = hVec(xB, yB, r.a, 'Δe', { maxAbs: 0.2, labelColor: '#503AA8', cellW: cwB });
+  s += v.svg; xB += v.w;
+  s += `<text x="${xB + plusW / 2}" y="${yB + 16}" text-anchor="middle" font-family="Fira Code" font-size="16" fill="#686868">=</text>`;
+  xB += plusW;
+  s += hVec(xB, yB, r.h1, `h₁ · ${askerLabel} with context`, { maxAbs: 0.5, highlight: true, labelColor: '#111', bold: true, cellW: cwB }).svg;
+
+  svg.innerHTML = s;
+}
+
+// ----- Stage 6 — MLP -----
+let mlpOn = true;
+
+function renderMLP() {
+  const r = pipeline(PROMPT_IDS, true);
+  const rOff = pipeline(PROMPT_IDS, false);
+  const onIdx = argmax(r.probs);
+  const offIdx = argmax(rOff.probs);
+  document.getElementById('mlpPredOn').textContent = `${VOCAB[onIdx]}  (${(r.probs[onIdx] * 100).toFixed(0)}%)`;
+  document.getElementById('mlpPredOff').textContent = `${VOCAB[offIdx]}  (${(rOff.probs[offIdx] * 100).toFixed(0)}%)`;
+  document.getElementById('mlpHint').innerHTML = mlpOn
+    ? 'MLP on — h₂ = h₁ + Δ. This is the full model.'
+    : 'Bypassed — h₂ = h₁. The prediction falls apart.';
+  drawMLPDiagram(r, mlpOn);
+}
+
+// Vertical stack of value cells centred at x=cx. Returns geometry for wiring.
+function cellRow(cx, yTop, vals, maxAbs, label) {
+  const cw = 54, ch = 26, gap = 6, step = ch + gap;
+  let s = `<text x="${cx}" y="${yTop - 10}" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#686868">${label}</text>`;
+  vals.forEach((val, i) => {
+    const y = yTop + i * step;
+    const mag = Math.min(1, Math.abs(val) / maxAbs);
+    const rgb = val >= 0 ? '80,58,168' : '230,93,117';
+    s += `<rect x="${cx - cw / 2}" y="${y}" width="${cw}" height="${ch}" fill="rgba(${rgb},${(0.12 + 0.6 * mag).toFixed(2)})" stroke="rgba(17,17,17,0.2)" rx="3"/>`;
+    s += `<text x="${cx}" y="${y + ch / 2 + 4}" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#111">${val.toFixed(2)}</text>`;
+  });
+  const n = vals.length;
+  return { svg: s, topY: yTop, midY: yTop + ((n - 1) * step + ch) / 2, botY: yTop + (n - 1) * step + ch, step };
+}
+
+function drawMLPDiagram(r, useMLP) {
+  const svg = document.getElementById('mlpDiagram');
+  if (!svg) return;
+  const W = 540, H = 380;
+  const h1x = 56, nx = 210, dx = 366, h2x = 486;
+  let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`;
+
+  const h1 = cellRow(h1x, 150, r.h1, 0.6, 'h₁');
+  const delta = cellRow(dx, 150, useMLP ? r.delta : [0, 0, 0], 16, 'Δ');
+  const h2 = cellRow(h2x, 150, useMLP ? r.h2 : r.h1, 16, 'h₂');
+
+  // hidden neurons + fully-connected edges (faint)
+  const ny0 = 46, nStep = 50, nr = 16;
+  const maxHid = Math.max(1, ...r.hid);
+  s += `<text x="${nx}" y="28" text-anchor="middle" font-family="Fira Code" font-size="11" fill="#686868">ReLU neurons · Stage 3</text>`;
+  let neurons = '';
+  for (let j = 0; j < r.hid.length; j++) {
+    const ny = ny0 + j * nStep;
+    const fired = useMLP && r.hid[j] > 0.01;
+    for (let d = 0; d < 3; d++) {
+      s += `<line x1="${h1x + 27}" y1="${h1.topY + d * h1.step + 13}" x2="${nx - nr}" y2="${ny}" stroke="rgba(80,58,168,${useMLP ? 0.12 : 0.04})" stroke-width="1"/>`;
+      s += `<line x1="${nx + nr}" y1="${ny}" x2="${dx - 27}" y2="${delta.topY + d * delta.step + 13}" stroke="rgba(46,125,50,${useMLP ? 0.12 : 0.04})" stroke-width="1"/>`;
+    }
+    const fill = fired ? `rgba(80,58,168,${(0.25 + 0.6 * Math.min(1, r.hid[j] / maxHid)).toFixed(2)})` : '#FBFAF3';
+    neurons += `<circle cx="${nx}" cy="${ny}" r="${nr}" fill="${fill}" stroke="${fired ? '#503AA8' : 'rgba(17,17,17,0.25)'}" stroke-width="1.5"/>`;
+    neurons += `<text x="${nx}" y="${ny + 4}" text-anchor="middle" font-family="Fira Code" font-size="9" fill="${fired ? '#fff' : '#999'}">${useMLP ? r.hid[j].toFixed(1) : '–'}</text>`;
+  }
+  s += neurons;
+  s += h1.svg + delta.svg + h2.svg;
+
+  // residual arc h1 -> (+), then delta -> (+) -> h2
+  const plusX = (dx + h2x) / 2, plusY = h2.midY;
+  s += `<path d="M ${h1x} ${h1.botY + 6} C ${h1x} ${H - 22}, ${plusX} ${H - 22}, ${plusX} ${plusY + 12}" stroke="#503AA8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" opacity="${useMLP ? 0.7 : 0.35}"/>`;
+  s += `<text x="${(h1x + plusX) / 2}" y="${H - 12}" text-anchor="middle" font-family="Fira Code" font-size="10" fill="#503AA8">residual + h₁</text>`;
+  s += `<line x1="${dx + 27}" y1="${delta.midY}" x2="${plusX - 11}" y2="${plusY}" stroke="#2e7d32" stroke-width="1.5"/>`;
+  s += `<circle cx="${plusX}" cy="${plusY}" r="11" fill="#FBFAF3" stroke="rgba(17,17,17,0.3)"/><text x="${plusX}" y="${plusY + 4}" text-anchor="middle" font-family="Fira Code" font-size="13" fill="#111">+</text>`;
+  s += `<line x1="${plusX + 11}" y1="${plusY}" x2="${h2x - 27}" y2="${h2.midY}" stroke="#503AA8" stroke-width="1.5"/>`;
+
+  if (!useMLP) {
+    s += `<text x="${nx}" y="${H - 30}" text-anchor="middle" font-family="Manrope" font-size="13" fill="#e85d75" font-weight="600">MLP bypassed — Δ = 0, h₂ = h₁</text>`;
+  }
+  svg.innerHTML = s;
+}
+
+// ----- Stage 7 — Generate -----
+let sampleTemp = 1.0;
+let genIds = PROMPT_IDS.slice();
+const MAX_GEN = 8;
+
+function renderGenerate() {
+  const r = pipeline(genIds, true);
+  const probsT = softmax(r.logits.map(l => l / sampleTemp));
+  const winnerIdx = argmax(probsT);
+  const rows = VOCAB.map((tok, v) => {
+    const cls = v === winnerIdx ? 'winner' : '';
+    return `<tr class="${cls}">
+      <td>${tok}</td>
+      <td class="num-cell">${r.logits[v].toFixed(2)}</td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${(probsT[v] * 100).toFixed(1)}%"></div></div></td>
+      <td class="num-cell">${(probsT[v] * 100).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+  document.querySelector('#logitTable tbody').innerHTML = rows;
+}
+
+function genDone() {
+  return VOCAB[genIds[genIds.length - 1]] === '.' || genIds.length >= MAX_GEN;
+}
+
+function renderSampleHistory(freshIdx = -1) {
+  const root = document.getElementById('sampleHistory');
+  if (!root) return;
+  const pills = genIds.map((id, i) =>
+    `<span class="tok-pill${i === freshIdx ? ' fresh' : ''}">${VOCAB[id]}</span>`).join('');
+  const tail = genDone()
+    ? `<span class="arrow">·</span><span style="color:var(--text-dim); font-style:italic;">complete — ↺ to restart</span>`
+    : `<span class="arrow">→</span><span style="color:var(--text-dim); font-style:italic;">click Generate</span>`;
+  root.innerHTML = `<span class="label">Generated:</span> ${pills} ${tail}`;
+}
+
+function pickNext() {
+  const r = pipeline(genIds, true);
+  const mode = document.getElementById('sampleMode').value;
+  if (mode === 'greedy' || sampleTemp <= 0) return argmax(r.logits);
+  const probsT = softmax(r.logits.map(l => l / sampleTemp));
+  let u = Math.random(), cum = 0;
+  for (let i = 0; i < probsT.length; i++) { cum += probsT[i]; if (u < cum) return i; }
+  return probsT.length - 1;
+}
+
+document.getElementById('tempSlider').addEventListener('input', e => {
+  sampleTemp = parseFloat(e.target.value);
+  document.getElementById('tempVal').textContent = sampleTemp.toFixed(2);
+  renderGenerate();
+});
+document.getElementById('sampleMode').addEventListener('change', renderGenerate);
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  if (genDone()) return;
+  genIds.push(pickNext());
+  renderSampleHistory(genIds.length - 1);
+  renderGenerate();
+});
+document.getElementById('resetSampleBtn').addEventListener('click', () => {
+  genIds = PROMPT_IDS.slice();
+  renderSampleHistory(-1);
+  renderGenerate();
+});
+document.getElementById('mlpToggle').addEventListener('change', e => {
+  mlpOn = e.target.value === 'on';
+  renderMLP();
+});
+
+// ----- Reset embeddings to the trained values -----
+document.getElementById('resetEmbedBtn').addEventListener('click', () => {
+  E = DEFAULTS.map(r => r.slice());
+  activeTok = -1;
+  buildTokens();      // rebuilds both the Embed grid and the Attend mirror
+  drawEmbedPlot();
+  updateLLM();
+});
+
+// ----- Prompt-mini live prediction (base prompt) -----
+function updatePromptMini() {
+  const r = pipeline(PROMPT_IDS, true);
+  const idx = argmax(r.probs);
+  document.getElementById('predNext').textContent = VOCAB[idx];
+  document.getElementById('predProb').textContent = (r.probs[idx] * 100).toFixed(0) + '%';
+}
+
+function updateLLM() {
+  renderAttend();
+  renderMLP();
+  renderGenerate();
+  updatePromptMini();
+}
+
+// =====================================================================
+// Boot
+// =====================================================================
+buildStages();
+renderLine();
+renderBend();
+renderStack();
+buildTokens();
+drawEmbedPlot();
+updateLLM();
+renderSampleHistory();
+// Initial prompt-mini visibility based on starting panel
+document.getElementById('promptMini').style.display = activeStage >= 3 ? 'flex' : 'none';
+applyHash();
+</script>
+</body>
+</html>

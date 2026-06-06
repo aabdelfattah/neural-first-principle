@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Editor swap & temp files
+*.swp
+*.swo
+.*.swp
+.*.swo
+*~
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor configs (only the project's own settings should be tracked)
+.vscode/
+.idea/
+
+# Local environment / virtualenvs
+.env
+.venv/
+venv/

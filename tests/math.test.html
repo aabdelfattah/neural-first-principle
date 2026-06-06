@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>math.test — lines-to-llms</title>
+<style>
+  body { font-family: 'Fira Code', Menlo, monospace; background: #fff; color: #111; padding: 32px; max-width: 800px; margin: 0 auto; }
+  h1 { font-family: 'Manrope', system-ui, sans-serif; font-weight: 300; font-size: 24px; margin-bottom: 20px; }
+  .case { padding: 8px 12px; margin: 4px 0; border-radius: 6px; font-size: 13px; }
+  .pass { background: #e8f5e9; color: #1b5e20; }
+  .pass::before { content: '✓ '; font-weight: 600; }
+  .fail { background: #ffebee; color: #b71c1c; }
+  .fail::before { content: '✗ '; font-weight: 600; }
+  .summary { margin-top: 18px; padding: 10px 14px; border-radius: 6px; font-weight: 500; }
+  .summary.green { background: #c8e6c9; color: #1b5e20; }
+  .summary.red { background: #ffcdd2; color: #b71c1c; }
+  pre { background: #fbfaf3; padding: 6px 10px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>lines-to-llms · math assertions</h1>
+<div id="results"></div>
+<div id="summary" class="summary"></div>
+
+<script>
+// Re-implement the math here so this file stays standalone — no module imports.
+// If these diverge from index.html the tests will catch it.
+const sigmoid = z => 1 / (1 + Math.exp(-z));
+function mse(preds, ys) {
+  let s = 0;
+  for (let i = 0; i < preds.length; i++) s += (preds[i] - ys[i]) ** 2;
+  return s / preds.length;
+}
+function softmax(arr) {
+  const m = Math.max(...arr);
+  const exps = arr.map(x => Math.exp(x - m));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return exps.map(e => e / sum);
+}
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+
+const FIT_DATA_X = [1, 2, 3, 4];
+const FIT_DATA_Y = [0, 1, 1, 0];
+
+const cases = [];
+function assert(name, actual, expected, tol = 1e-3) {
+  const passed = Math.abs(actual - expected) <= tol;
+  cases.push({ name, passed, actual, expected, tol });
+}
+function assertArr(name, actual, expected, tol = 1e-3) {
+  let passed = actual.length === expected.length;
+  for (let i = 0; passed && i < actual.length; i++) {
+    passed = Math.abs(actual[i] - expected[i]) <= tol;
+  }
+  cases.push({ name, passed, actual: '[' + actual.map(v => v.toFixed(3)).join(', ') + ']', expected: '[' + expected.map(v => v.toFixed(3)).join(', ') + ']', tol });
+}
+
+// ===== Sigmoid =====
+assert('sigmoid(0) = 0.5', sigmoid(0), 0.5);
+assert('sigmoid(-2.5) ≈ 0.0759', sigmoid(-2.5), 0.0759, 1e-3);
+assert('sigmoid(2.5) ≈ 0.9241', sigmoid(2.5), 0.9241, 1e-3);
+assert("sigmoid'(0) = 0.25 [via σ(1-σ)]", sigmoid(0) * (1 - sigmoid(0)), 0.25);
+
+// ===== Stage 1 — Line — best constant MSE on [0,1,1,0] is 0.25 =====
+const constHalf = FIT_DATA_X.map(() => 0.5);
+assert('Line: y=0.5 horizontal → MSE = 0.25', mse(constHalf, FIT_DATA_Y), 0.25, 1e-6);
+
+// ===== Stage 3 — Stack — defaults must hit MSE ≈ 0.0058 =====
+const stackDefaults = { w1: 5.0, b1: -7.5, w2: 5.0, b2: -17.5 };
+const stackPreds = FIT_DATA_X.map(x =>
+  sigmoid(stackDefaults.w1 * x + stackDefaults.b1) -
+  sigmoid(stackDefaults.w2 * x + stackDefaults.b2)
+);
+assertArr('Stack defaults → predictions ≈ [0.076, 0.923, 0.924, 0.076]',
+  stackPreds, [0.0759, 0.9234, 0.9234, 0.0759], 1e-3);
+assert('Stack defaults → MSE ≈ 0.0058', mse(stackPreds, FIT_DATA_Y), 0.0058, 2e-3);
+assert('Stack defaults → loss < 0.01', mse(stackPreds, FIT_DATA_Y) < 0.01 ? 1 : 0, 1);
+
+// ===== Canonical LLM example — "a fluffy blue creature" → "roamed" (3-dim toy) =====
+// These constants must stay in sync with index.html (equivalence.py verifies the
+// page directly; this asserts the canonical numbers a reader could re-derive).
+// Pipeline: embed → attention (identity Q/K/V, no √d) → MLP (ReLU + residual)
+// → tied unembed. VOCAB: a=0 the=1 fluffy=2 blue=3 creature=4 forest=5
+// roamed=6 walked=7 .=8. Prompt = [0, 2, 3, 4].
+const Emb = [
+  [-0.06, -0.03, 0.00], [0.08, -0.08, -0.06], [-0.09, -0.04, 0.07], [-0.05, 0.06, 0.12],
+  [0.06, 0.13, 0.09], [-0.04, -0.15, -0.09], [0.09, 0.11, -0.11], [0.09, 0.02, 0.01],
+  [-0.15, -0.10, -0.02],
+];
+const W1 = [[-19.46, -6.07, 2.68], [1.31, 20.52, 9.07], [13.74, -4.40, -20.26], [-0.81, 0.01, 1.06], [0.42, 0.56, 0.79], [-12.28, -7.12, -1.86]];
+const B1 = [5.96, 14.91, 14.54, -0.23, -1.26, 5.69];
+const W2 = [[-7.31, 24.46, -13.83, 0.47, -0.31, -9.61], [1.31, 12.05, -19.97, 0.39, 0.10, -2.40], [18.99, -4.59, -4.98, 0.06, -0.14, 14.64]];
+const B2 = [6.11, 9.10, 1.42];
+const matVec = (M, v) => M.map(r => dot(r, v));
+const vAdd = (a, b) => a.map((x, i) => x + b[i]);
+const relu = v => v.map(x => Math.max(0, x));
+function llm(ids) {
+  const Xs = ids.map(i => Emb[i]);
+  const q = Xs[Xs.length - 1];
+  const sc = Xs.map(k => dot(q, k));
+  const al = softmax(sc);
+  const ag = [0, 0, 0];
+  for (let i = 0; i < al.length; i++) for (let d = 0; d < 3; d++) ag[d] += al[i] * Xs[i][d];
+  const h1 = vAdd(q, ag);
+  const h2 = vAdd(h1, vAdd(matVec(W2, relu(vAdd(matVec(W1, h1), B1))), B2));
+  return { sc, al, h1, probs: softmax(Emb.map(e => dot(h2, e))) };
+}
+const R = llm([0, 2, 3, 4]);   // a fluffy blue creature
+const argmaxIdx = arr => arr.indexOf(Math.max(...arr));
+assertArr('Attention scores ≈ [-0.008, -0.004, +0.016, +0.029]',
+  R.sc, [-0.0075, -0.0043, 0.0156, 0.0286], 1e-3);
+assertArr('Attention weights ≈ [0.246, 0.247, 0.252, 0.255]',
+  R.al, [0.2461, 0.2469, 0.2519, 0.2551], 1e-3);
+assert('Attention weights sum to 1', R.al.reduce((a, b) => a + b, 0), 1);
+assertArr('h₁ (= e\'_creature) ≈ [+0.026, +0.161, +0.161]',
+  R.h1, [0.0257, 0.1610, 0.1605], 1e-3);
+assert('P(roamed | "a fluffy blue creature") ≈ 79.7%', R.probs[6], 0.7970, 3e-3);
+assert('P(walked) ≈ 20.0%', R.probs[7], 0.2002, 3e-3);
+assert('roamed is the argmax (greedy → roamed)', argmaxIdx(R.probs) === 6 ? 1 : 0, 1);
+assert('Probs sum to 1', R.probs.reduce((a, b) => a + b, 0), 1);
+// Rollout: greedy from "a fluffy blue creature" reproduces 3B1B's sentence
+// (sans "verdant", which we dropped for vocab compactness):
+//   roamed → the → forest → .
+assert('"... roamed" → "the" (argmax)',          argmaxIdx(llm([0, 2, 3, 4, 6]).probs) === 1 ? 1 : 0, 1);
+assert('"... roamed the" → "forest" (argmax)',   argmaxIdx(llm([0, 2, 3, 4, 6, 1]).probs) === 5 ? 1 : 0, 1);
+assert('"... roamed the forest" → "."',          argmaxIdx(llm([0, 2, 3, 4, 6, 1, 5]).probs) === 8 ? 1 : 0, 1);
+
+// ===== Render =====
+const root = document.getElementById('results');
+let passed = 0;
+cases.forEach(c => {
+  const div = document.createElement('div');
+  div.className = 'case ' + (c.passed ? 'pass' : 'fail');
+  div.innerHTML = c.name + (c.passed ? '' :
+    ` <pre>got: ${c.actual} · expected: ${c.expected} · tol: ${c.tol}</pre>`);
+  root.appendChild(div);
+  if (c.passed) passed++;
+});
+const sum = document.getElementById('summary');
+sum.textContent = `${passed} / ${cases.length} passed`;
+sum.classList.add(passed === cases.length ? 'green' : 'red');
+</script>
+</body>
+</html>
